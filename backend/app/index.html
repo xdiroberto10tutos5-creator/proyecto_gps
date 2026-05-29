@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard Coach</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    body {
+      font-family: Arial;
+      margin: 20px;
+      background: #f5f5f5;
+    }
+
+    .card {
+      border: 1px solid #ccc;
+      padding: 15px;
+      background: white;
+      border-radius: 10px;
+      min-width: 130px;
+    }
+
+    #map {
+      height: 500px;
+      width: 100%;
+      margin-top: 20px;
+      border-radius: 10px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Dashboard Coach</h1>
+
+  <input id="sesion_id" placeholder="Pega aquí el ID de la sesión" size="60" />
+  <button onclick="cargarGPS()">Cargar GPS</button>
+
+  <p id="estado">Esperando datos...</p>
+
+  <div style="display:flex; gap:15px; flex-wrap:wrap; margin-top:20px">
+
+    <div class="card">
+      <h3>Distancia</h3>
+      <p id="distancia">0 m</p>
+    </div>
+
+    <div class="card">
+      <h3>V. Máx</h3>
+      <p id="vmax">0 km/h</p>
+    </div>
+
+    <div class="card">
+      <h3>V. Prom</h3>
+      <p id="vprom">0 km/h</p>
+    </div>
+
+    <div class="card">
+      <h3>HSR</h3>
+      <p id="hsr">0 m</p>
+    </div>
+
+    <div class="card">
+      <h3>Sprints</h3>
+      <p id="sprints">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Aceleraciones</h3>
+      <p id="aceleraciones">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Deceleraciones</h3>
+      <p id="deceleraciones">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Carga Física</h3>
+      <p id="carga">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Score</h3>
+      <p id="score">0</p>
+    </div>
+
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+  <script>
+    const map = L.map("map").setView([8.5, -82.4], 15);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "OpenStreetMap",
+    }).addTo(map);
+
+    let ruta = null;
+    let heat = null;
+    let marcador = null;
+
+    async function cargarGPS() {
+      const sesionId = document.getElementById("sesion_id").value;
+
+      if (!sesionId) {
+        alert("Pega el ID de la sesión");
+        return;
+      }
+
+      const res = await fetch(`/gps/sesion/${sesionId}`);
+      const json = await res.json();
+
+      const puntos = json.data.map((p) => [
+        parseFloat(p.latitud),
+        parseFloat(p.longitud),
+      ]);
+
+      document.getElementById("estado").innerHTML =
+        "Puntos GPS cargados: " + puntos.length;
+
+      if (ruta) map.removeLayer(ruta);
+      if (heat) map.removeLayer(heat);
+      if (marcador) map.removeLayer(marcador);
+
+      if (puntos.length > 0) {
+        ruta = L.polyline(puntos).addTo(map);
+
+        const puntosHeat = json.data.map((p) => [
+          parseFloat(p.latitud),
+          parseFloat(p.longitud),
+          0.5,
+        ]);
+
+        heat = L.heatLayer(puntosHeat, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 18,
+        }).addTo(map);
+
+        marcador = L.marker(puntos[puntos.length - 1]).addTo(map);
+        map.setView(puntos[puntos.length - 1], 18);
+      }
+
+      const resMetricas = await fetch(`/metricas/guardadas/${sesionId}`);
+      const jsonMetricas = await resMetricas.json();
+
+      if (jsonMetricas.data.length > 0) {
+        const m = jsonMetricas.data[jsonMetricas.data.length - 1];
+
+        document.getElementById("distancia").innerHTML =
+          m.distancia_total + " m";
+
+        document.getElementById("vmax").innerHTML =
+          m.velocidad_max + " km/h";
+
+        document.getElementById("vprom").innerHTML =
+          m.velocidad_promedio + " km/h";
+
+        document.getElementById("hsr").innerHTML =
+          m.hsr + " m";
+
+        document.getElementById("sprints").innerHTML =
+          m.sprints;
+
+        document.getElementById("aceleraciones").innerHTML =
+          m.aceleraciones;
+
+        document.getElementById("deceleraciones").innerHTML =
+          m.deceleraciones;
+
+        document.getElementById("carga").innerHTML =
+          m.carga_fisica;
+
+        document.getElementById("score").innerHTML =
+          m.score_actual;
+      }
+    }
+  </script>
+
+</body>
+</html>

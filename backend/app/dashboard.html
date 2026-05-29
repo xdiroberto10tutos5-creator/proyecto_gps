@@ -1,0 +1,239 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dashboard Coach</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <style>
+      body {
+        font-family: Arial;
+        margin: 20px;
+      }
+
+      #map {
+        height: 500px;
+        width: 100%;
+        margin-top: 20px;
+      }
+
+      input,
+      button {
+        padding: 10px;
+        margin: 5px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Dashboard Coach</h1>
+
+    <input
+      id="sesion_id"
+      placeholder="Pega aquí el ID de la sesión"
+      size="60"
+    />
+    <button onclick="cargarGPS()">Cargar GPS</button>
+
+    <p id="estado">Esperando datos...</p>
+
+    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 20px">
+      <div style="border: 1px solid #ccc; padding: 15px">
+        <h3>Distancia</h3>
+        <p id="distancia">0 m</p>
+      </div>
+
+      <div style="border: 1px solid #ccc; padding: 15px">
+        <h3>V. Máx</h3>
+        <p id="vmax">0 km/h</p>
+      </div>
+
+      <div style="border: 1px solid #ccc; padding: 15px">
+        <h3>V. Prom</h3>
+        <p id="vprom">0 km/h</p>
+      </div>
+
+      <div style="border: 1px solid #ccc; padding: 15px">
+        <h3>HSR</h3>
+        <p id="hsr">0 m</p>
+      </div>
+
+      <div style="border: 1px solid #ccc; padding: 15px">
+        <h3>Sprints</h3>
+        <p id="sprints">0</p>
+      </div>
+
+      <div style="border: 1px solid #ccc; padding: 15px">
+        <h3>Carga Física</h3>
+        <p id="carga">0</p>
+      </div>
+
+      <div style="border: 1px solid #ccc; padding: 15px">
+        <h3>Score</h3>
+        <p id="score">0</p>
+      </div>
+    </div>
+
+    <div id="map"></div>
+
+    <h2>Historial del Jugador</h2>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap">
+      <div
+        style="
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          width: 45%;
+        "
+      >
+        <h3>Score por sesión</h3>
+        <canvas id="graficaScore"></canvas>
+      </div>
+
+      <div
+        style="
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          width: 45%;
+        "
+      >
+        <h3>Distancia por sesión</h3>
+        <canvas id="graficaDistancia"></canvas>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+      const map = L.map("map").setView([8.5, -82.4], 15);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "OpenStreetMap",
+      }).addTo(map);
+
+      let ruta = null;
+      let heat = null;
+      let marcador = null;
+      let chartScore = null;
+      let chartDistancia = null;
+
+      async function cargarGPS() {
+        const sesionId = document.getElementById("sesion_id").value;
+
+        const res = await fetch(`/gps/sesion/${sesionId}`);
+        const json = await res.json();
+
+        const puntos = json.data.map((p) => [
+          parseFloat(p.latitud),
+          parseFloat(p.longitud),
+        ]);
+
+        document.getElementById("estado").innerHTML =
+          "Puntos GPS cargados: " + puntos.length;
+
+        if (ruta) {
+          map.removeLayer(ruta);
+        }
+
+        ruta = L.polyline(puntos).addTo(map);
+
+        if (puntos.length > 0) {
+          map.setView(puntos[puntos.length - 1], 18);
+          L.marker(puntos[puntos.length - 1]).addTo(map);
+        }
+        const puntosHeat = json.data.map((p) => [
+          parseFloat(p.latitud),
+          parseFloat(p.longitud),
+          0.5,
+        ]);
+        if (heat) {
+          map.removeLayer(heat);
+        }
+
+        heat = L.heatLayer(puntosHeat, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 18,
+        }).addTo(map);
+        const resMetricas = await fetch(`/metricas/guardadas/${sesionId}`);
+        const jsonMetricas = await resMetricas.json();
+
+        if (jsonMetricas.data.length > 0) {
+          const m = jsonMetricas.data[jsonMetricas.data.length - 1];
+
+          document.getElementById("distancia").innerHTML =
+            m.distancia_total + " m";
+
+          document.getElementById("vmax").innerHTML = m.velocidad_max + " km/h";
+
+          document.getElementById("vprom").innerHTML =
+            m.velocidad_promedio + " km/h";
+
+          document.getElementById("hsr").innerHTML = m.hsr + " m";
+
+          document.getElementById("sprints").innerHTML = m.sprints;
+
+          document.getElementById("carga").innerHTML = m.carga_fisica;
+        }
+        const jugadorId = json.data.length > 0 ? json.data[0].jugador_id : null;
+
+        if (jugadorId) {
+          const resHistorial = await fetch(`/historial/jugador/${jugadorId}`);
+          const jsonHistorial = await resHistorial.json();
+
+          const labels = jsonHistorial.historial.map(
+            (h, index) => "Sesión " + (index + 1),
+          );
+          const scores = jsonHistorial.historial.map(
+            (h) => h.score_actual || 0,
+          );
+          const distancias = jsonHistorial.historial.map(
+            (h) => h.distancia_total || 0,
+          );
+
+          if (chartScore) {
+            chartScore.destroy();
+          }
+
+          chartScore = new Chart(document.getElementById("graficaScore"), {
+            type: "line",
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: "Score",
+                  data: scores,
+                },
+              ],
+            },
+          });
+
+          if (chartDistancia) {
+            chartDistancia.destroy();
+          }
+
+          chartDistancia = new Chart(
+            document.getElementById("graficaDistancia"),
+            {
+              type: "bar",
+              data: {
+                labels: labels,
+                datasets: [
+                  {
+                    label: "Distancia total",
+                    data: distancias,
+                  },
+                ],
+              },
+            },
+          );
+        }
+      }
+    </script>
+  </body>
+</html>
