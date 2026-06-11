@@ -77,9 +77,10 @@ El repositorio incluye `render.yaml`.
 3. Ejecuta `supabase/00_reparar_columnas.sql` en una consulta nueva.
 4. Comprueba que ambas columnas devuelvan el valor `1`.
 5. Ejecuta `supabase/rls_policies.sql` en otra consulta nueva.
-6. Configura `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `CORS_ORIGINS`.
-7. Usa `/health/` como health check.
-8. Render ejecutará:
+6. Ejecuta `supabase/02_proteger_tablas_auxiliares.sql`.
+7. Configura `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `CORS_ORIGINS`.
+8. Usa `/health/` como health check.
+9. Render ejecutará:
 
 ```text
 pip install -r requirements.txt && python -m unittest discover -s tests -v
