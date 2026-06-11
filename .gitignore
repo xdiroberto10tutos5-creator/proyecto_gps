@@ -1,11 +1,15 @@
 venv/
 .venv/
 backend/venv/
+backend/.venv/
 
 .env
 backend/.env
+*.env
 
 __pycache__/
+**/__pycache__/
 *.pyc
 
 .vscode/
+.pytest_cache/

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confirmando cuenta</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #102025;
+      background: #0d2822;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    main {
+      width: min(520px, 100%);
+      padding: 28px;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+    }
+    h1 { margin: 0 0 10px; }
+    p { margin: 0; color: #64777f; line-height: 1.55; }
+    a {
+      display: inline-flex;
+      margin-top: 18px;
+      min-height: 42px;
+      align-items: center;
+      padding: 0 15px;
+      border-radius: 8px;
+      color: #ffffff;
+      background: #0d8f61;
+      font-weight: 800;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Confirmando tu cuenta</h1>
+    <p id="message">Validando la sesión con Supabase...</p>
+    <a id="backLink" href="/dashboard" hidden>Volver al inicio</a>
+  </main>
+
+  <script>
+    completarConfirmacion();
+
+    async function completarConfirmacion() {
+      const message = document.getElementById("message");
+      const backLink = document.getElementById("backLink");
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const error = hash.get("error_description") || hash.get("error");
+      const accessToken = hash.get("access_token");
+      const refreshToken = hash.get("refresh_token");
+      const expiresIn = Number(hash.get("expires_in") || 3600);
+
+      if (error) {
+        message.textContent = `Supabase no pudo confirmar la cuenta: ${error}`;
+        backLink.hidden = false;
+        return;
+      }
+
+      if (!accessToken || !refreshToken) {
+        message.textContent =
+          "El correo fue confirmado, pero Supabase no devolvió una sesión. " +
+          "Regresa al inicio e inicia sesión con tu correo y contraseña.";
+        backLink.hidden = false;
+        return;
+      }
+
+      try {
+        const response = await fetch("/auth/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_in: expiresIn
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "No se pudo completar la sesión.");
+        }
+        message.textContent = "Cuenta confirmada. Abriendo el dashboard...";
+        window.history.replaceState({}, document.title, "/auth/callback");
+        window.location.replace("/dashboard");
+      } catch (error) {
+        message.textContent = error.message;
+        backLink.hidden = false;
+      }
+    }
+  </script>
+</body>
+</html>

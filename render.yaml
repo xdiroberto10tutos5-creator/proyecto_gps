@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: gps-futbol
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python -m unittest discover -s tests -v
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: ENVIRONMENT
+        value: production
+      - key: DOCS_ENABLED
+        value: "true"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false

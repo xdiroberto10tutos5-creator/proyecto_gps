@@ -1,191 +1,478 @@
 <!doctype html>
-<html>
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Dashboard Coach</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GPS Jugador</title>
   <style>
+    :root {
+      --bg: #0b1114;
+      --panel: #111b20;
+      --panel-2: #17242a;
+      --line: #2b3d45;
+      --text: #f3f8f7;
+      --muted: #9db0b7;
+      --accent: #38d976;
+      --accent-2: #4fb3ff;
+      --danger: #ff5d5d;
+      --warn: #ffca5f;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      font-family: Arial;
-      margin: 20px;
-      background: #f5f5f5;
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 0%, rgba(56, 217, 118, 0.18), transparent 32rem),
+        linear-gradient(160deg, #0b1114 0%, #10191d 50%, #0e1518 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    .card {
-      border: 1px solid #ccc;
-      padding: 15px;
-      background: white;
-      border-radius: 10px;
-      min-width: 130px;
+    main {
+      width: min(100%, 520px);
+      margin: 0 auto;
+      padding: 22px 16px 28px;
     }
 
-    #map {
-      height: 500px;
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.55rem;
+      letter-spacing: 0;
+    }
+
+    .status-pill {
+      min-width: 96px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .status-pill.active {
+      color: #062111;
+      border-color: transparent;
+      background: var(--accent);
+    }
+
+    section {
+      margin-top: 14px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      background: rgba(17, 27, 32, 0.88);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 7px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+
+    input {
       width: 100%;
-      margin-top: 20px;
-      border-radius: 10px;
+      min-height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 12px;
+      color: var(--text);
+      background: #0d1518;
+      font: inherit;
+      outline: none;
     }
 
-    input, button {
-      padding: 10px;
-      margin: 5px;
+    input:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(79, 179, 255, 0.16);
     }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button {
+      min-height: 48px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 14px;
+      color: #06120a;
+      background: var(--accent);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    button.danger {
+      color: #fff;
+      background: var(--danger);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .context {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.35;
+    }
+
+    .context strong {
+      color: var(--text);
+    }
+
+    .metric {
+      min-height: 84px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0d1518;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 1.45rem;
+      line-height: 1;
+    }
+
+    .log {
+      min-height: 72px;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: #0d1518;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .quality {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--warn);
+    }
+
+    .dot.good { background: var(--accent); }
+    .dot.bad { background: var(--danger); }
   </style>
 </head>
-
 <body>
+  <main>
+    <header>
+      <div>
+        <h1>GPS Jugador</h1>
+        <div class="quality"><i id="qualityDot" class="dot"></i><span id="qualityText">Listo para capturar</span></div>
+      </div>
+      <div id="status" class="status-pill">Detenido</div>
+    </header>
 
-  <h1>Dashboard Coach</h1>
+    <section>
+      <div class="context">
+        <div>Jugador: <strong id="jugadorNombre">Sin seleccionar</strong></div>
+        <div>Sesión activa: <strong id="sesionNombre">Sin seleccionar</strong></div>
+      </div>
 
-  <input id="sesion_id" placeholder="Pega aquí el ID de la sesión" size="60" />
-  <button onclick="cargarGPS()">Cargar GPS</button>
+      <label for="sesion_id">ID de sesión</label>
+      <input id="sesion_id" autocomplete="off" placeholder="Pega el sesion_id" />
 
-  <p id="estado">Esperando datos...</p>
+      <label for="jugador_id">ID de jugador</label>
+      <input id="jugador_id" autocomplete="off" placeholder="Pega el jugador_id" />
 
-  <div style="display:flex; gap:15px; flex-wrap:wrap; margin-top:20px">
+      <div class="controls">
+        <button id="startBtn" onclick="iniciarGPS()">Iniciar GPS</button>
+        <button id="stopBtn" class="danger" onclick="detenerYEnviar()" disabled>Detener GPS y Enviar</button>
+        <button id="clearBtn" class="secondary" onclick="limpiarCaptura()">Limpiar captura local</button>
+      </div>
+    </section>
 
-    <div class="card">
-      <h3>Distancia</h3>
-      <p id="distancia">0 m</p>
-    </div>
-
-    <div class="card">
-      <h3>V. Máx</h3>
-      <p id="vmax">0 km/h</p>
-    </div>
-
-    <div class="card">
-      <h3>V. Prom</h3>
-      <p id="vprom">0 km/h</p>
-    </div>
-
-    <div class="card">
-      <h3>HSR</h3>
-      <p id="hsr">0 m</p>
-    </div>
-
-    <div class="card">
-      <h3>Sprints</h3>
-      <p id="sprints">0</p>
-    </div>
-
-    <div class="card">
-      <h3>Aceleraciones</h3>
-      <p id="aceleraciones">0</p>
-    </div>
-
-    <div class="card">
-      <h3>Deceleraciones</h3>
-      <p id="deceleraciones">0</p>
-    </div>
-
-    <div class="card">
-      <h3>Carga Física</h3>
-      <p id="carga">0</p>
-    </div>
-
-    <div class="card">
-      <h3>Score</h3>
-      <p id="score">0</p>
-    </div>
-
-  </div>
-
-  <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <section>
+      <div class="grid">
+        <div class="metric"><span>Puntos guardados</span><strong id="puntos">0</strong></div>
+        <div class="metric"><span>Precisión actual</span><strong id="precision">-- m</strong></div>
+        <div class="metric"><span>Latitud actual</span><strong id="latitud">--</strong></div>
+        <div class="metric"><span>Longitud actual</span><strong id="longitud">--</strong></div>
+        <div class="metric"><span>Velocidad actual</span><strong id="velocidad">0.0</strong></div>
+        <div class="metric"><span>Último envío</span><strong id="ultimoEnvio">--</strong></div>
+      </div>
+      <div id="log" class="log">El teléfono guardará los puntos localmente hasta que detengas la captura.</div>
+    </section>
+  </main>
 
   <script>
-    const map = L.map("map").setView([8.5, -82.4], 15);
+    const STORAGE_KEY = "gps_futbol_buffer";
+    const params = new URLSearchParams(window.location.search);
+    const sesionInput = document.getElementById("sesion_id");
+    const jugadorInput = document.getElementById("jugador_id");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
+    const qualityDot = document.getElementById("qualityDot");
+    const qualityText = document.getElementById("qualityText");
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "OpenStreetMap",
-    }).addTo(map);
+    let watchId = null;
+    let puntos = cargarBuffer();
+    let ultimoPunto = puntos[puntos.length - 1] || null;
 
-    let ruta = null;
-    let heat = null;
-    let marcador = null;
+    precargarContexto();
+    pintarEstado();
 
-    async function cargarGPS() {
-      const sesionId = document.getElementById("sesion_id").value;
+    function precargarContexto() {
+      const sesionActiva = JSON.parse(localStorage.getItem("sesion_activa") || "null");
+      const jugadorActivo = JSON.parse(localStorage.getItem("jugador_activo") || "null");
+      const sesionId = params.get("sesion_id") || (sesionActiva && sesionActiva.id) || "";
+      const jugadorId = params.get("jugador_id") || (jugadorActivo && jugadorActivo.id) || "";
+      const sesionNombre = params.get("sesion_nombre") || (sesionActiva && sesionActiva.nombre) || "Sin seleccionar";
+      const jugadorNombre = params.get("jugador_nombre") || (jugadorActivo && jugadorActivo.nombre) || "Sin seleccionar";
 
-      if (!sesionId) {
-        alert("Pega el ID de la sesión");
+      sesionInput.value = sesionId;
+      jugadorInput.value = jugadorId;
+      document.getElementById("sesionNombre").textContent = sesionNombre;
+      document.getElementById("jugadorNombre").textContent = jugadorNombre;
+    }
+
+    function cargarBuffer() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function guardarBuffer() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(puntos));
+    }
+
+    function setLog(texto) {
+      logEl.textContent = texto;
+    }
+
+    function pintarEstado() {
+      document.getElementById("puntos").textContent = puntos.length;
+      document.getElementById("ultimoEnvio").textContent = localStorage.getItem("gps_futbol_ultimo_envio") || "--";
+    }
+
+    function velocidadCalculada(lat1, lon1, lat2, lon2, segundos) {
+      if (!segundos || segundos <= 0) return 0;
+      const rad = Math.PI / 180;
+      const r = 6371000;
+      const dLat = (lat2 - lat1) * rad;
+      const dLon = (lon2 - lon1) * rad;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+      return (r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) / segundos;
+    }
+
+    async function iniciarGPS() {
+      let authResponse;
+      try {
+        authResponse = await fetch("/auth/me");
+        if (authResponse.status === 401 && await renovarSesionAuth()) {
+          authResponse = await fetch("/auth/me");
+        }
+      } catch {
+        setLog("No se pudo comprobar la sesión del coach.");
+        return;
+      }
+      if (!authResponse.ok) {
+        setLog("Debes iniciar sesión como coach en esta misma dirección web antes de capturar GPS.");
         return;
       }
 
-      const res = await fetch(`/gps/sesion/${sesionId}`);
-      const json = await res.json();
-
-      const puntos = json.data.map((p) => [
-        parseFloat(p.latitud),
-        parseFloat(p.longitud),
-      ]);
-
-      document.getElementById("estado").innerHTML =
-        "Puntos GPS cargados: " + puntos.length;
-
-      if (ruta) map.removeLayer(ruta);
-      if (heat) map.removeLayer(heat);
-      if (marcador) map.removeLayer(marcador);
-
-      if (puntos.length > 0) {
-        ruta = L.polyline(puntos).addTo(map);
-
-        const puntosHeat = json.data.map((p) => [
-          parseFloat(p.latitud),
-          parseFloat(p.longitud),
-          0.5,
-        ]);
-
-        heat = L.heatLayer(puntosHeat, {
-          radius: 25,
-          blur: 15,
-          maxZoom: 18,
-        }).addTo(map);
-
-        marcador = L.marker(puntos[puntos.length - 1]).addTo(map);
-        map.setView(puntos[puntos.length - 1], 18);
+      if (!sesionInput.value.trim() || !jugadorInput.value.trim()) {
+        setLog("Completa sesion_id y jugador_id antes de iniciar.");
+        return;
       }
 
-      const resMetricas = await fetch(`/metricas/guardadas/${sesionId}`);
-      const jsonMetricas = await resMetricas.json();
+      if (!navigator.geolocation) {
+        setLog("Este navegador no soporta geolocalización.");
+        return;
+      }
 
-      if (jsonMetricas.data.length > 0) {
-        const m = jsonMetricas.data[jsonMetricas.data.length - 1];
+      puntos = [];
+      ultimoPunto = null;
+      guardarBuffer();
+      pintarEstado();
 
-        document.getElementById("distancia").innerHTML =
-          m.distancia_total + " m";
+      watchId = navigator.geolocation.watchPosition(registrarPunto, manejarError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 12000
+      });
 
-        document.getElementById("vmax").innerHTML =
-          m.velocidad_max + " km/h";
+      statusEl.textContent = "Capturando";
+      statusEl.classList.add("active");
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      setLog("Captura iniciada. Mantén el teléfono firme en el chaleco.");
+    }
 
-        document.getElementById("vprom").innerHTML =
-          m.velocidad_promedio + " km/h";
+    function registrarPunto(position) {
+      const coords = position.coords;
+      const timestamp = new Date(position.timestamp).toISOString();
+      const base = {
+        latitud: coords.latitude,
+        longitud: coords.longitude,
+        precision_gps: Number(coords.accuracy || 0),
+        timestamp
+      };
 
-        document.getElementById("hsr").innerHTML =
-          m.hsr + " m";
+      if (ultimoPunto) {
+        const segundos = (new Date(timestamp) - new Date(ultimoPunto.timestamp)) / 1000;
+        base.velocidad = coords.speed && coords.speed > 0
+          ? Number(coords.speed)
+          : velocidadCalculada(ultimoPunto.latitud, ultimoPunto.longitud, base.latitud, base.longitud, segundos);
+      } else {
+        base.velocidad = Number(coords.speed || 0);
+      }
 
-        document.getElementById("sprints").innerHTML =
-          m.sprints;
+      puntos.push(base);
+      ultimoPunto = base;
+      guardarBuffer();
 
-        document.getElementById("aceleraciones").innerHTML =
-          m.aceleraciones;
+      document.getElementById("precision").textContent = `${Math.round(base.precision_gps)} m`;
+      document.getElementById("latitud").textContent = base.latitud.toFixed(6);
+      document.getElementById("longitud").textContent = base.longitud.toFixed(6);
+      document.getElementById("velocidad").textContent = `${(base.velocidad * 3.6).toFixed(1)} km/h`;
+      pintarEstado();
 
-        document.getElementById("deceleraciones").innerHTML =
-          m.deceleraciones;
+      qualityDot.className = base.precision_gps <= 10 ? "dot good" : base.precision_gps <= 20 ? "dot" : "dot bad";
+      qualityText.textContent = base.precision_gps <= 10 ? "Señal GPS buena" : base.precision_gps <= 20 ? "Señal aceptable" : "Señal débil";
+    }
 
-        document.getElementById("carga").innerHTML =
-          m.carga_fisica;
+    function manejarError(error) {
+      setLog(`GPS no disponible: ${error.message}`);
+      qualityDot.className = "dot bad";
+      qualityText.textContent = "GPS sin señal";
+    }
 
-        document.getElementById("score").innerHTML =
-          m.score_actual;
+    async function detenerYEnviar() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+
+      statusEl.textContent = "Enviando";
+      statusEl.classList.remove("active");
+      stopBtn.disabled = true;
+
+      if (puntos.length === 0) {
+        startBtn.disabled = false;
+        statusEl.textContent = "Detenido";
+        setLog("No hay puntos GPS para enviar.");
+        return;
+      }
+
+      try {
+        let response = await enviarLote();
+        if (response.status === 401 && await renovarSesionAuth()) {
+          response = await enviarLote();
+        }
+
+        const json = await response.json();
+        if (!response.ok) throw new Error(JSON.stringify(json));
+
+        const hora = new Date().toLocaleTimeString();
+        localStorage.setItem("gps_futbol_ultimo_envio", hora);
+        puntos = [];
+        ultimoPunto = null;
+        guardarBuffer();
+        pintarEstado();
+        setLog(`Envío correcto. Puntos enviados: ${json.puntos_recibidos}.`);
+      } catch (error) {
+        setLog(`No se pudo enviar. Los puntos siguen guardados localmente. ${error.message}`);
+      } finally {
+        startBtn.disabled = false;
+        statusEl.textContent = "Detenido";
       }
     }
-  </script>
 
+    function enviarLote() {
+      return fetch("/gps/lote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sesion_id: sesionInput.value.trim(),
+            jugador_id: jugadorInput.value.trim(),
+            puntos
+          })
+        });
+    }
+
+    async function renovarSesionAuth() {
+      const response = await fetch("/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+      if (!response.ok) {
+        return false;
+      }
+      const data = await response.json();
+      return Boolean(data.autenticado);
+    }
+
+    function limpiarCaptura() {
+      if (watchId !== null) return;
+      puntos = [];
+      ultimoPunto = null;
+      guardarBuffer();
+      pintarEstado();
+      setLog("Captura local limpiada.");
+    }
+  </script>
 </body>
 </html>

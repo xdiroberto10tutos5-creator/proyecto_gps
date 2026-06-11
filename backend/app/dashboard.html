@@ -1,239 +1,1575 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Dashboard Coach</title>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GPS Futbol Coach</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg: #eef3f4;
+      --panel: #ffffff;
+      --ink: #102025;
+      --muted: #64777f;
+      --line: #d7e1e4;
+      --green: #0d8f61;
+      --blue: #1769aa;
+      --dark: #0d171a;
+      --warn: #b56a00;
+      --danger: #c94343;
+    }
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    * { box-sizing: border-box; }
 
-    <style>
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 22px 16px;
+      color: #fff;
+      background: linear-gradient(180deg, #0b1518 0%, #123128 100%);
+    }
+
+    .brand {
+      margin-bottom: 24px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 6px 0 0;
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 0.86rem;
+      line-height: 1.4;
+    }
+
+    nav {
+      display: grid;
+      gap: 7px;
+    }
+
+    .nav-btn {
+      width: 100%;
+      min-height: 42px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 12px;
+      color: rgba(255, 255, 255, 0.78);
+      background: transparent;
+      font: inherit;
+      font-weight: 800;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .nav-btn.active,
+    .nav-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .coach-chip {
+      margin-top: 22px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .coach-chip strong { display: block; }
+
+    main {
+      min-width: 0;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .topbar h2 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+    }
+
+    .topbar p {
+      margin: 5px 0 0;
+      color: var(--muted);
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 14px 32px rgba(16, 32, 37, 0.07);
+    }
+
+    .card-pad { padding: 16px; }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 850;
+    }
+
+    input, select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 11px;
+      color: var(--ink);
+      background: #fff;
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(23, 105, 170, 0.13);
+    }
+
+    button, .button-link {
+      min-height: 42px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 14px;
+      color: #fff;
+      background: var(--green);
+      font: inherit;
+      font-weight: 850;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }
+
+    button.secondary, .button-link.secondary {
+      color: var(--ink);
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .row-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    }
+
+    .list {
+      display: grid;
+      gap: 9px;
+      padding: 12px;
+    }
+
+    .item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdfd;
+    }
+
+    .item strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .item span {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .metric {
+      min-height: 124px;
+      padding: 15px;
+    }
+
+    .metric span {
+      display: block;
+      min-height: 34px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 850;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 12px;
+      font-size: clamp(1.4rem, 2vw, 2rem);
+      line-height: 1;
+    }
+
+    .metric small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 750;
+    }
+
+    #map {
+      width: 100%;
+      height: 500px;
+      border-radius: 0 0 8px 8px;
+      background: #183b25;
+    }
+
+    .pitch-dimension {
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: center;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+      white-space: nowrap;
+    }
+
+    .pitch-dimension.vertical {
+      transform: rotate(-90deg);
+    }
+
+    .leaflet-container {
+      font-family: inherit;
+    }
+
+    .report-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .report-meta div {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f8fbfb;
+    }
+
+    .report-meta span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .report-meta strong {
+      display: block;
+      margin-top: 5px;
+    }
+
+    .report-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .layout {
+      grid-template-columns: minmax(0, 1.35fr) minmax(330px, 0.75fr);
+      align-items: start;
+    }
+
+    .chart-box {
+      height: 245px;
+      padding: 14px;
+    }
+
+    .status {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .login {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 24px;
+      background: linear-gradient(145deg, #0b1518 0%, #14372e 100%);
+    }
+
+    .login-card {
+      width: min(620px, 100%);
+      padding: 22px;
+      color: var(--ink);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.32);
+    }
+
+    .login-card h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+    }
+
+    .login-card p {
+      margin: 0 0 18px;
+      color: var(--muted);
+    }
+
+    .hidden { display: none !important; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    th, td {
+      padding: 11px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: 0.92rem;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 1050px) {
+      .app { grid-template-columns: 1fr; }
+      aside {
+        position: static;
+        height: auto;
+      }
+      nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .cols-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      main { padding: 16px; }
+      nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .row, .row-4, .cols-2, .cols-3, .cols-6 { grid-template-columns: 1fr; }
+      .item { grid-template-columns: 1fr; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      #map { height: 420px; }
+      .report-meta { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      @page {
+        size: A4;
+        margin: 14mm;
+      }
+
       body {
-        font-family: Arial;
-        margin: 20px;
+        background: #ffffff;
       }
 
-      #map {
-        height: 500px;
-        width: 100%;
-        margin-top: 20px;
+      body.print-report #login,
+      body.print-report aside,
+      body.print-report .topbar,
+      body.print-report .page:not(#reportes),
+      body.print-report #reportes > .card:first-child,
+      body.print-report .report-actions {
+        display: none !important;
       }
 
-      input,
-      button {
-        padding: 10px;
-        margin: 5px;
+      body.print-report #app,
+      body.print-report main,
+      body.print-report #reportes,
+      body.print-report #reporteDocumento {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: 0 !important;
       }
-    </style>
-  </head>
 
-  <body>
-    <h1>Dashboard Coach</h1>
+      body.print-report #reporteDocumento {
+        color: #102025;
+      }
 
-    <input
-      id="sesion_id"
-      placeholder="Pega aquí el ID de la sesión"
-      size="60"
-    />
-    <button onclick="cargarGPS()">Cargar GPS</button>
+      body.print-report #reporteMetricas {
+        grid-template-columns: repeat(3, 1fr) !important;
+      }
 
-    <p id="estado">Esperando datos...</p>
-
-    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 20px">
-      <div style="border: 1px solid #ccc; padding: 15px">
-        <h3>Distancia</h3>
-        <p id="distancia">0 m</p>
+      body.print-report .card {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section id="login" class="login">
+    <div class="login-card">
+      <h1>GPS Futbol Coach</h1>
+      <p>Inicia sesión para acceder únicamente a tus jugadores y sesiones.</p>
+      <div class="grid cols-2">
+        <div>
+          <label for="authEmail">Correo electrónico</label>
+          <input id="authEmail" type="email" autocomplete="email" placeholder="coach@email.com" />
+        </div>
+        <div>
+          <label for="authPassword">Contraseña</label>
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="Mínimo 8 caracteres" />
+        </div>
       </div>
-
-      <div style="border: 1px solid #ccc; padding: 15px">
-        <h3>V. Máx</h3>
-        <p id="vmax">0 km/h</p>
+      <button style="width:100%;margin-top:12px" onclick="iniciarSesionCoach()">Iniciar sesión</button>
+      <button id="resendConfirmationBtn" class="secondary" style="width:100%;margin-top:8px" onclick="reenviarConfirmacion()">Reenviar confirmación</button>
+      <hr />
+      <p>¿Primera vez? Crea una cuenta de coach.</p>
+      <div class="grid cols-3">
+        <div>
+          <label for="registroNombre">Nombre</label>
+          <input id="registroNombre" autocomplete="name" placeholder="Nombre del coach" />
+        </div>
+        <div>
+          <label for="registroEmail">Correo electrónico</label>
+          <input id="registroEmail" type="email" autocomplete="email" placeholder="coach@email.com" />
+        </div>
+        <div>
+          <label for="registroPassword">Contraseña</label>
+          <input id="registroPassword" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" />
+        </div>
       </div>
-
-      <div style="border: 1px solid #ccc; padding: 15px">
-        <h3>V. Prom</h3>
-        <p id="vprom">0 km/h</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button onclick="registrarCoachAuth()">Crear cuenta</button>
+        <button class="secondary" onclick="cargarDemo()">Entrar en modo demo</button>
       </div>
-
-      <div style="border: 1px solid #ccc; padding: 15px">
-        <h3>HSR</h3>
-        <p id="hsr">0 m</p>
-      </div>
-
-      <div style="border: 1px solid #ccc; padding: 15px">
-        <h3>Sprints</h3>
-        <p id="sprints">0</p>
-      </div>
-
-      <div style="border: 1px solid #ccc; padding: 15px">
-        <h3>Carga Física</h3>
-        <p id="carga">0</p>
-      </div>
-
-      <div style="border: 1px solid #ccc; padding: 15px">
-        <h3>Score</h3>
-        <p id="score">0</p>
-      </div>
+      <p id="loginMsg" class="status"></p>
     </div>
+  </section>
 
-    <div id="map"></div>
+  <div id="app" class="app hidden">
+    <aside>
+      <div class="brand">
+        <h1>GPS Futbol</h1>
+        <p>Gestión y análisis de sesiones GPS para fútbol.</p>
+      </div>
+      <nav id="nav"></nav>
+      <div class="coach-chip">
+        <span>Coach activo</span>
+        <strong id="coachActivoNombre">--</strong>
+        <button class="secondary" style="width:100%;margin-top:10px" onclick="cerrarSesion()">Cerrar sesión</button>
+      </div>
+    </aside>
 
-    <h2>Historial del Jugador</h2>
-
-    <div style="display: flex; gap: 20px; flex-wrap: wrap">
-      <div
-        style="
-          background: white;
-          padding: 20px;
-          border-radius: 10px;
-          width: 45%;
-        "
-      >
-        <h3>Score por sesión</h3>
-        <canvas id="graficaScore"></canvas>
+    <main>
+      <div class="topbar">
+        <div>
+          <h2 id="pageTitle">Inicio</h2>
+          <p id="pageSubtitle">Resumen general de la demo local.</p>
+        </div>
+        <a id="mobileLink" class="button-link secondary" href="/app" target="_blank">Abrir captura GPS</a>
       </div>
 
-      <div
-        style="
-          background: white;
-          padding: 20px;
-          border-radius: 10px;
-          width: 45%;
-        "
-      >
-        <h3>Distancia por sesión</h3>
-        <canvas id="graficaDistancia"></canvas>
-      </div>
-    </div>
+      <section id="inicio" class="page active">
+        <p id="homeMsg" class="status"></p>
+        <div class="grid cols-3">
+          <div class="card metric"><span>Coach activo</span><strong id="homeCoach">--</strong><small>perfil local</small></div>
+          <div class="card metric"><span>Jugador seleccionado</span><strong id="homeJugador">--</strong><small>captura GPS</small></div>
+          <div class="card metric"><span>Sesión activa</span><strong id="homeSesion">--</strong><small>dashboard y reportes</small></div>
+        </div>
+        <div class="card card-pad" style="margin-top:14px">
+          <h3>Flujo recomendado</h3>
+          <p>Registra jugadores, crea una sesión, elige jugador y sesión activa, abre captura GPS y luego revisa dashboard, historial y reportes.</p>
+        </div>
+      </section>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <section id="coaches" class="page">
+        <div class="card">
+          <div class="section-head"><h3>Mi perfil de coach</h3><span id="coachMsg" class="status"></span></div>
+          <div class="card-pad row">
+            <div><label>Nombre</label><input id="coachNombre" /></div>
+            <div><label>Email</label><input id="coachEmail" /></div>
+            <button onclick="crearCoach()">Actualizar perfil</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="section-head"><h3>Cuenta autenticada</h3><button class="secondary" onclick="cargarDatos()">Actualizar</button></div>
+          <div id="listaCoaches" class="list"></div>
+        </div>
+      </section>
 
-    <script>
-      const map = L.map("map").setView([8.5, -82.4], 15);
+      <section id="jugadores" class="page">
+        <div class="card">
+          <div class="section-head"><h3>Crear jugador</h3><span id="jugadorMsg" class="status"></span></div>
+          <div class="card-pad row row-4">
+            <div><label>Nombre</label><input id="jugadorNombre" /></div>
+            <div><label>Posición</label><input id="jugadorPosicion" placeholder="Extremo" /></div>
+            <div><label>Edad</label><input id="jugadorEdad" type="number" /></div>
+            <div><label>Número</label><input id="jugadorNumero" type="number" /></div>
+            <button onclick="crearJugador()">Crear</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="section-head"><h3>Jugadores</h3><button class="secondary" onclick="cargarDatos()">Actualizar</button></div>
+          <div id="listaJugadores" class="list"></div>
+        </div>
+      </section>
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "OpenStreetMap",
-      }).addTo(map);
+      <section id="sesiones" class="page">
+        <div class="card">
+          <div class="section-head"><h3>Crear sesión</h3><span id="sesionMsg" class="status"></span></div>
+          <div class="card-pad row">
+            <div><label>Nombre</label><input id="sesionNombre" placeholder="Entrenamiento táctico" /></div>
+            <div><label>Equipo ID opcional</label><input id="sesionEquipo" /></div>
+            <button onclick="crearSesion()">Crear</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="section-head"><h3>Sesiones</h3><button class="secondary" onclick="cargarDatos()">Actualizar</button></div>
+          <div id="listaSesiones" class="list"></div>
+        </div>
+      </section>
 
-      let ruta = null;
-      let heat = null;
-      let marcador = null;
-      let chartScore = null;
-      let chartDistancia = null;
+      <section id="captura" class="page">
+        <div class="card card-pad">
+          <h3>Captura GPS móvil</h3>
+          <p>Selecciona sesión y jugador activos. Luego abre la pantalla móvil; si usas el mismo navegador se precargan desde localStorage, y si no, el enlace incluye los IDs como parámetros.</p>
+          <div class="grid cols-2">
+            <div><label>Sesión activa</label><select id="capturaSesion" onchange="seleccionarSesion(this.value)"></select></div>
+            <div><label>Jugador seleccionado</label><select id="capturaJugador" onchange="seleccionarJugador(this.value)"></select></div>
+          </div>
+          <a id="capturaLink" class="button-link" style="margin-top:14px" href="/app" target="_blank">Abrir /app</a>
+        </div>
+      </section>
 
-      async function cargarGPS() {
-        const sesionId = document.getElementById("sesion_id").value;
+      <section id="dashboard" class="page">
+        <p id="dashMsg" class="status">Selecciona sesión y jugador para cargar dashboard.</p>
+        <div class="card card-pad">
+          <div class="grid cols-2">
+            <div><label>Sesión</label><select id="dashSesion" onchange="seleccionarSesion(this.value)"></select></div>
+            <div><label>Jugador</label><select id="dashJugador" onchange="seleccionarJugador(this.value)"></select></div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+            <button onclick="cargarDashboard()">Cargar dashboard</button>
+            <button class="secondary" onclick="cargarDemo()">Cargar demo</button>
+          </div>
+        </div>
 
-        const res = await fetch(`/gps/sesion/${sesionId}`);
-        const json = await res.json();
+        <section class="grid cols-6" style="margin:14px 0">
+          <article class="card metric"><span>Distancia total</span><strong id="m_distancia_total">0</strong><small>metros</small></article>
+          <article class="card metric"><span>Velocidad máxima</span><strong id="m_velocidad_max">0</strong><small>km/h</small></article>
+          <article class="card metric"><span>HSR</span><strong id="m_hsr">0</strong><small>metros · ≥16,2 km/h</small></article>
+          <article class="card metric"><span>Sprints</span><strong id="m_sprints">0</strong><small>eventos · ≥20,9 km/h</small></article>
+          <article class="card metric"><span>Deceleraciones</span><strong id="m_deceleraciones">0</strong><small>eventos · ≤−1,5 m/s²</small></article>
+          <article class="card metric"><span>Distancia/min</span><strong id="m_dist_min">0</strong><small>m/min</small></article>
+        </section>
 
-        const puntos = json.data.map((p) => [
-          parseFloat(p.latitud),
-          parseFloat(p.longitud),
-        ]);
+        <section class="grid layout">
+          <div class="card">
+            <div class="section-head"><h3>Mapa GPS</h3><span id="puntosLabel">0 puntos</span></div>
+            <div id="map"></div>
+          </div>
+          <aside class="grid">
+            <div class="card"><div class="section-head"><h3>Distancia</h3></div><div class="chart-box"><canvas id="chartDistancia"></canvas></div></div>
+            <div class="card"><div class="section-head"><h3>Velocidad máxima</h3></div><div class="chart-box"><canvas id="chartVelocidad"></canvas></div></div>
+            <div class="card"><div class="section-head"><h3>Sprints</h3></div><div class="chart-box"><canvas id="chartSprints"></canvas></div></div>
+          </aside>
+        </section>
+      </section>
 
-        document.getElementById("estado").innerHTML =
-          "Puntos GPS cargados: " + puntos.length;
+      <section id="historial" class="page">
+        <div class="card card-pad">
+          <div class="grid cols-2">
+            <div><label>Jugador</label><select id="histJugador" onchange="seleccionarJugador(this.value)"></select></div>
+            <div style="align-self:end"><button onclick="cargarHistorial()">Cargar historial</button></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;overflow:auto">
+          <div class="section-head"><h3>Sesiones anteriores</h3></div>
+          <table>
+            <thead><tr><th>Sesión</th><th>Distancia</th><th>Vel. máx</th><th>Sprints</th><th>HSR</th><th>Decel.</th><th>Dist/min</th></tr></thead>
+            <tbody id="tablaHistorial"></tbody>
+          </table>
+        </div>
+      </section>
 
-        if (ruta) {
-          map.removeLayer(ruta);
+      <section id="reportes" class="page">
+        <div class="card card-pad">
+          <div class="grid cols-2">
+            <div><label>Sesión</label><select id="repSesion" onchange="seleccionarSesion(this.value)"></select></div>
+            <div><label>Jugador</label><select id="repJugador" onchange="seleccionarJugador(this.value)"></select></div>
+          </div>
+          <div class="report-actions">
+            <button onclick="cargarReporte()">Generar reporte</button>
+            <button class="secondary" onclick="imprimirReporte()">Guardar como PDF</button>
+          </div>
+        </div>
+        <div id="reporteDocumento" class="card card-pad" style="margin-top:14px">
+          <h3 id="reporteTitulo">Reporte de sesión</h3>
+          <div id="reporteMeta" class="report-meta"></div>
+          <p id="reporteTexto" class="status">Carga una sesión para ver el resumen.</p>
+          <div id="reporteMetricas" class="grid cols-3"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const pages = [
+      ["inicio", "Inicio", "Resumen general de la demo local."],
+      ["coaches", "Coaches", "Gestiona perfiles de coach."],
+      ["jugadores", "Jugadores", "Crea y selecciona jugadores."],
+      ["sesiones", "Sesiones", "Programa y controla sesiones."],
+      ["captura", "Captura GPS", "Abre la pantalla móvil de captura."],
+      ["dashboard", "Dashboard", "Mapa, heatmap y métricas principales."],
+      ["historial", "Historial", "Evolución por jugador."],
+      ["reportes", "Reportes", "Resumen visual de sesión."]
+    ];
+
+    const state = {
+      coaches: [],
+      jugadores: [],
+      sesiones: [],
+      auth: false,
+      coach: null,
+      jugador: JSON.parse(localStorage.getItem("jugador_activo") || "null"),
+      sesion: JSON.parse(localStorage.getItem("sesion_activa") || "null"),
+      demo: false
+    };
+
+    let map = null;
+    let routeLayer = null;
+    let heatLayer = null;
+    let pitchLayers = [];
+    let charts = {};
+    let reporteGenerado = false;
+
+    const CANCHA = {
+      largo: 94.07,
+      ancho: 49.96,
+      centroLat: 9.035833,
+      centroLon: -79.469444
+    };
+
+    init();
+
+    async function init() {
+      document.getElementById("nav").innerHTML = pages.map(([id, label]) =>
+        `<button class="nav-btn ${id === "inicio" ? "active" : ""}" onclick="showPage('${id}')">${label}</button>`
+      ).join("");
+
+      await comprobarConfiguracionAuth();
+      try {
+        await cargarUsuarioAutenticado();
+        await cargarDatos();
+        mostrarApp();
+        actualizarContexto();
+      } catch (error) {
+        limpiarSesionLocal();
+        mostrarLogin();
+      }
+    }
+
+    async function comprobarConfiguracionAuth() {
+      try {
+        const status = await api("/auth/status", { auth: false, retry: false });
+        document.getElementById("resendConfirmationBtn").classList.toggle(
+          "hidden",
+          !status.confirmacion_email_requerida
+        );
+        if (!status.esquema_rls_listo) {
+          document.getElementById("loginMsg").textContent =
+            "Falta ejecutar los archivos de la carpeta supabase en SQL Editor. " +
+            "Sin esa migración no se pueden asociar las cuentas con sus datos.";
         }
+      } catch (error) {
+        document.getElementById("loginMsg").textContent =
+          `No se pudo comprobar Supabase Auth: ${error.message}`;
+      }
+    }
 
-        ruta = L.polyline(puntos).addTo(map);
+    function mostrarLogin() {
+      document.getElementById("login").classList.remove("hidden");
+      document.getElementById("app").classList.add("hidden");
+    }
 
-        if (puntos.length > 0) {
-          map.setView(puntos[puntos.length - 1], 18);
-          L.marker(puntos[puntos.length - 1]).addTo(map);
+    function mostrarApp() {
+      document.getElementById("login").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
+      setTimeout(initMap, 50);
+    }
+
+    function showPage(id) {
+      document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === id));
+      document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.textContent === pages.find(p => p[0] === id)[1]));
+      const meta = pages.find(p => p[0] === id);
+      document.getElementById("pageTitle").textContent = meta[1];
+      document.getElementById("pageSubtitle").textContent = meta[2];
+      if (id === "dashboard") setTimeout(initMap, 50);
+    }
+
+    async function api(url, options = {}) {
+      const requiereAuth = options.auth !== false;
+      const retry = options.retry !== false;
+      const fetchOptions = { ...options };
+      delete fetchOptions.auth;
+      delete fetchOptions.retry;
+      const headers = {
+        "Content-Type": "application/json",
+        ...(fetchOptions.headers || {})
+      };
+      const res = await fetch(url, {
+        ...fetchOptions,
+        headers
+      });
+      const data = await res.json();
+      if (res.status === 401 && requiereAuth && retry && await renovarSesion()) {
+        return api(url, { ...options, retry: false });
+      }
+      if (!res.ok) {
+        const detail = typeof data.detail === "object"
+          ? data.detail.msg || data.detail.message || data.detail.error_description || JSON.stringify(data.detail)
+          : data.detail;
+        throw new Error(detail || data.error || "Error de API");
+      }
+      return data;
+    }
+
+    function guardarSesionAuth(data) {
+      state.auth = Boolean(data && data.autenticado);
+    }
+
+    async function renovarSesion() {
+      try {
+        const data = await api("/auth/refresh", {
+          method: "POST",
+          auth: false,
+          retry: false,
+          body: JSON.stringify({})
+        });
+        guardarSesionAuth(data);
+        return Boolean(data.autenticado);
+      } catch {
+        return false;
+      }
+    }
+
+    async function cargarUsuarioAutenticado() {
+      const data = await api("/auth/me");
+      state.auth = true;
+      state.coach = data.coach;
+      localStorage.setItem("coach_activo", JSON.stringify(state.coach));
+    }
+
+    async function cargarDatos() {
+      const errores = [];
+
+      const [coaches, jugadores, sesiones] = await Promise.all([
+        cargarLista("/coaches/", "coaches", errores),
+        cargarLista("/jugadores/", "jugadores", errores),
+        cargarLista("/sesiones/", "sesiones", errores)
+      ]);
+
+      state.coaches = coaches;
+      state.jugadores = jugadores;
+      state.sesiones = sesiones;
+      pintarListas();
+      actualizarSelects();
+
+      const mensaje = errores.length
+        ? `Algunos módulos no cargaron: ${errores.join(" | ")}`
+        : "";
+      const loginMsg = document.getElementById("loginMsg");
+      if (loginMsg) loginMsg.textContent = mensaje;
+    }
+
+    async function cargarLista(url, nombre, errores) {
+      try {
+        const respuesta = await api(url);
+        return respuesta.data || respuesta || [];
+      } catch (error) {
+        errores.push(`${nombre}: ${error.message}`);
+        return [];
+      }
+    }
+
+    function actualizarSelects() {
+      ["capturaJugador", "dashJugador", "histJugador", "repJugador"].forEach(id => fillSelect(id, state.jugadores, "Selecciona jugador", state.jugador && state.jugador.id));
+      ["capturaSesion", "dashSesion", "repSesion"].forEach(id => fillSelect(id, state.sesiones, "Selecciona sesión", state.sesion && state.sesion.id));
+    }
+
+    function fillSelect(id, items, empty, selectedId) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = `<option value="">${empty}</option>` + items.map(item => {
+        const label = item.nombre || item.email || item.id;
+        const selected = selectedId && selectedId === item.id ? "selected" : "";
+        return `<option value="${item.id}" ${selected}>${label}</option>`;
+      }).join("");
+    }
+
+    function pintarListas() {
+      document.getElementById("listaCoaches").innerHTML = state.coaches.map(c => itemHtml(
+        c,
+        c.nombre || c.email,
+        c.email || c.id,
+        `seleccionarCoach('${c.id}')`,
+        null
+      )).join("") || "<p class='status'>No hay coaches.</p>";
+
+      document.getElementById("listaJugadores").innerHTML = state.jugadores.map(j => itemHtml(
+        j,
+        `${j.nombre || "Jugador"} ${j.numero ? "#" + j.numero : ""}`,
+        `${j.posicion || "Sin posición"} · ${j.edad || "--"} años · Equipo: ${j.equipo_id || "--"}`,
+        `seleccionarJugador('${j.id}')`,
+        `eliminarJugador('${j.id}')`
+      )).join("") || "<p class='status'>No hay jugadores.</p>";
+
+      document.getElementById("listaSesiones").innerHTML = state.sesiones.map(s => itemHtml(
+        s,
+        s.nombre || s.id,
+        `Estado: ${s.estado || "programada"} · Coach: ${s.coach_id || "--"}`,
+        `seleccionarSesion('${s.id}')`,
+        `eliminarSesion('${s.id}')`,
+        true
+      )).join("") || "<p class='status'>No hay sesiones.</p>";
+    }
+
+    function itemHtml(item, title, subtitle, selectAction, deleteAction, estados = false) {
+      const estadoBtns = estados ? `
+        <button class="secondary" onclick="cambiarEstadoSesion('${item.id}', 'programada')">Programada</button>
+        <button class="secondary" onclick="cambiarEstadoSesion('${item.id}', 'activa')">Activa</button>
+        <button class="secondary" onclick="cambiarEstadoSesion('${item.id}', 'finalizada')">Finalizada</button>
+      ` : "";
+
+      return `<div class="item">
+        <div><strong>${title}</strong><span>${subtitle}</span></div>
+        <button class="secondary" onclick="${selectAction}">Seleccionar</button>
+        ${estadoBtns}
+        ${deleteAction ? `<button class="danger" onclick="${deleteAction}">Eliminar</button>` : ""}
+      </div>`;
+    }
+
+    function actualizarContexto() {
+      const coachName = state.coach ? state.coach.nombre : "--";
+      const jugadorName = state.jugador ? state.jugador.nombre : "--";
+      const sesionName = state.sesion ? state.sesion.nombre : "--";
+      document.getElementById("coachActivoNombre").textContent = coachName;
+      document.getElementById("homeCoach").textContent = coachName;
+      document.getElementById("homeJugador").textContent = jugadorName;
+      document.getElementById("homeSesion").textContent = sesionName;
+      const params = new URLSearchParams();
+      if (state.sesion) {
+        params.set("sesion_id", state.sesion.id);
+        params.set("sesion_nombre", state.sesion.nombre || "");
+      }
+      if (state.jugador) {
+        params.set("jugador_id", state.jugador.id);
+        params.set("jugador_nombre", state.jugador.nombre || "");
+      }
+      const href = `/app${params.toString() ? "?" + params.toString() : ""}`;
+      document.getElementById("mobileLink").href = href;
+      document.getElementById("capturaLink").href = href;
+      actualizarSelects();
+    }
+
+    async function iniciarSesionCoach() {
+      const email = document.getElementById("authEmail").value.trim();
+      const password = document.getElementById("authPassword").value;
+      if (!email || password.length < 8) {
+        document.getElementById("loginMsg").textContent = "Escribe un correo válido y una contraseña de al menos 8 caracteres.";
+        return;
+      }
+
+      try {
+        const data = await api("/auth/login", {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({ email, password })
+        });
+        guardarSesionAuth(data);
+        if (data.coach) {
+          state.coach = data.coach;
+          localStorage.setItem("coach_activo", JSON.stringify(state.coach));
+        } else {
+          await cargarUsuarioAutenticado();
         }
-        const puntosHeat = json.data.map((p) => [
-          parseFloat(p.latitud),
-          parseFloat(p.longitud),
-          0.5,
-        ]);
-        if (heat) {
-          map.removeLayer(heat);
-        }
+        mostrarApp();
+        actualizarContexto();
+        document.getElementById("homeMsg").textContent = "Sesión iniciada correctamente.";
+        await cargarDatos();
+      } catch (error) {
+        document.getElementById("loginMsg").textContent = `No se pudo iniciar sesión: ${error.message}`;
+      }
+    }
 
-        heat = L.heatLayer(puntosHeat, {
-          radius: 25,
-          blur: 15,
-          maxZoom: 18,
-        }).addTo(map);
-        const resMetricas = await fetch(`/metricas/guardadas/${sesionId}`);
-        const jsonMetricas = await resMetricas.json();
+    async function registrarCoachAuth() {
+      const nombre = document.getElementById("registroNombre").value.trim();
+      const email = document.getElementById("registroEmail").value.trim();
+      const password = document.getElementById("registroPassword").value;
+      if (nombre.length < 2 || !email || password.length < 8) {
+        document.getElementById("loginMsg").textContent = "Completa nombre, correo y una contraseña de al menos 8 caracteres.";
+        return;
+      }
 
-        if (jsonMetricas.data.length > 0) {
-          const m = jsonMetricas.data[jsonMetricas.data.length - 1];
-
-          document.getElementById("distancia").innerHTML =
-            m.distancia_total + " m";
-
-          document.getElementById("vmax").innerHTML = m.velocidad_max + " km/h";
-
-          document.getElementById("vprom").innerHTML =
-            m.velocidad_promedio + " km/h";
-
-          document.getElementById("hsr").innerHTML = m.hsr + " m";
-
-          document.getElementById("sprints").innerHTML = m.sprints;
-
-          document.getElementById("carga").innerHTML = m.carga_fisica;
-        }
-        const jugadorId = json.data.length > 0 ? json.data[0].jugador_id : null;
-
-        if (jugadorId) {
-          const resHistorial = await fetch(`/historial/jugador/${jugadorId}`);
-          const jsonHistorial = await resHistorial.json();
-
-          const labels = jsonHistorial.historial.map(
-            (h, index) => "Sesión " + (index + 1),
-          );
-          const scores = jsonHistorial.historial.map(
-            (h) => h.score_actual || 0,
-          );
-          const distancias = jsonHistorial.historial.map(
-            (h) => h.distancia_total || 0,
-          );
-
-          if (chartScore) {
-            chartScore.destroy();
+      try {
+        const data = await api("/auth/signup", {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({ nombre, email, password })
+        });
+        if (data.autenticado) {
+          guardarSesionAuth(data);
+          if (data.coach) {
+            state.coach = data.coach;
+            localStorage.setItem("coach_activo", JSON.stringify(state.coach));
+          } else {
+            await cargarUsuarioAutenticado();
           }
+          mostrarApp();
+          actualizarContexto();
+          document.getElementById("homeMsg").textContent = "Cuenta creada correctamente.";
+          await cargarDatos();
+        } else {
+          document.getElementById("loginMsg").textContent =
+            "Cuenta creada correctamente. Supabase envió un correo de confirmación. " +
+            `Abre ese enlace antes de iniciar sesión. URL de retorno: ${data.confirmacion_url || "/auth/callback"}`;
+        }
+      } catch (error) {
+        document.getElementById("loginMsg").textContent = `No se pudo crear la cuenta: ${error.message}`;
+      }
+    }
 
-          chartScore = new Chart(document.getElementById("graficaScore"), {
-            type: "line",
-            data: {
-              labels: labels,
-              datasets: [
-                {
-                  label: "Score",
-                  data: scores,
-                },
-              ],
-            },
+    async function reenviarConfirmacion() {
+      const email = (
+        document.getElementById("authEmail").value.trim()
+        || document.getElementById("registroEmail").value.trim()
+      );
+      if (!email) {
+        document.getElementById("loginMsg").textContent = "Escribe primero el correo de la cuenta.";
+        return;
+      }
+
+      try {
+        const data = await api("/auth/resend", {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({ email })
+        });
+        document.getElementById("loginMsg").textContent = data.mensaje;
+      } catch (error) {
+        document.getElementById("loginMsg").textContent = `No se pudo reenviar: ${error.message}`;
+      }
+    }
+
+    function limpiarSesionLocal() {
+      localStorage.removeItem("coach_activo");
+      localStorage.removeItem("jugador_activo");
+      localStorage.removeItem("sesion_activa");
+      state.auth = false;
+      state.coach = state.jugador = state.sesion = null;
+      state.demo = false;
+    }
+
+    async function cerrarSesion() {
+      if (state.auth) {
+        try {
+          await api("/auth/logout", { method: "POST", retry: false });
+        } catch {}
+      }
+      limpiarSesionLocal();
+      mostrarLogin();
+    }
+
+    async function crearCoach() {
+      const nombre = document.getElementById("coachNombre").value.trim();
+      const email = document.getElementById("coachEmail").value.trim();
+      if (!nombre) {
+        document.getElementById("coachMsg").textContent = "Escribe el nombre del coach.";
+        return;
+      }
+
+      try {
+        const actualizado = await api("/coaches/", {
+          method: "POST",
+          body: JSON.stringify({ nombre, email: email || null })
+        });
+        const perfil = Array.isArray(actualizado) ? actualizado[0] : actualizado;
+        if (perfil) {
+          state.coach = perfil;
+          localStorage.setItem("coach_activo", JSON.stringify(perfil));
+        }
+        document.getElementById("coachMsg").textContent = "Perfil actualizado.";
+        document.getElementById("coachNombre").value = "";
+        document.getElementById("coachEmail").value = "";
+        await cargarDatos();
+        actualizarContexto();
+      } catch (error) {
+        document.getElementById("coachMsg").textContent = `No se pudo actualizar el perfil: ${error.message}`;
+      }
+    }
+
+    async function eliminarCoach(id) {
+      await api(`/coaches/${id}`, { method: "DELETE" });
+      if (state.coach && state.coach.id === id) cerrarSesion();
+      await cargarDatos();
+    }
+
+    function seleccionarCoach(id) {
+      state.coach = state.coaches.find(c => c.id === id) || null;
+      if (state.coach) localStorage.setItem("coach_activo", JSON.stringify(state.coach));
+      actualizarContexto();
+    }
+
+    async function crearJugador() {
+      const payload = {
+        nombre: document.getElementById("jugadorNombre").value.trim(),
+        posicion: document.getElementById("jugadorPosicion").value.trim() || null,
+        edad: Number(document.getElementById("jugadorEdad").value) || null,
+        numero: Number(document.getElementById("jugadorNumero").value) || null
+      };
+      if (!payload.nombre) return;
+      await api("/jugadores/", { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("jugadorMsg").textContent = "Jugador creado.";
+      await cargarDatos();
+    }
+
+    async function eliminarJugador(id) {
+      await api(`/jugadores/${id}`, { method: "DELETE" });
+      if (state.jugador && state.jugador.id === id) {
+        state.jugador = null;
+        localStorage.removeItem("jugador_activo");
+      }
+      await cargarDatos();
+      actualizarContexto();
+    }
+
+    function seleccionarJugador(id) {
+      state.jugador = state.jugadores.find(j => j.id === id) || null;
+      if (state.jugador) localStorage.setItem("jugador_activo", JSON.stringify(state.jugador));
+      actualizarContexto();
+    }
+
+    async function crearSesion() {
+      if (!state.coach) {
+        document.getElementById("sesionMsg").textContent = "Selecciona un coach activo.";
+        return;
+      }
+      const payload = {
+        nombre: document.getElementById("sesionNombre").value.trim(),
+        equipo_id: document.getElementById("sesionEquipo").value.trim() || null
+      };
+      if (!payload.nombre) return;
+      await api("/sesiones/", { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("sesionMsg").textContent = "Sesión creada.";
+      await cargarDatos();
+    }
+
+    async function eliminarSesion(id) {
+      await api(`/sesiones/${id}`, { method: "DELETE" });
+      if (state.sesion && state.sesion.id === id) {
+        state.sesion = null;
+        localStorage.removeItem("sesion_activa");
+      }
+      await cargarDatos();
+      actualizarContexto();
+    }
+
+    async function cambiarEstadoSesion(id, estado) {
+      await api(`/sesiones/${id}/estado`, { method: "PATCH", body: JSON.stringify({ estado }) });
+      await cargarDatos();
+    }
+
+    function seleccionarSesion(id) {
+      state.sesion = state.sesiones.find(s => s.id === id) || null;
+      if (state.sesion) localStorage.setItem("sesion_activa", JSON.stringify(state.sesion));
+      actualizarContexto();
+    }
+
+    function initMap() {
+      if (map || !document.getElementById("map") || typeof L === "undefined") return;
+      map = L.map("map", {
+        crs: L.CRS.Simple,
+        zoomControl: false,
+        attributionControl: false,
+        minZoom: 1,
+        maxZoom: 6,
+        zoomSnap: 0.25
+      });
+      map.createPane("pitchSurfacePane").style.zIndex = 200;
+      map.createPane("heatPane").style.zIndex = 350;
+      map.createPane("routePane").style.zIndex = 400;
+      map.createPane("pitchLinesPane").style.zIndex = 450;
+      map.createPane("pitchLabelsPane").style.zIndex = 500;
+      dibujarCancha();
+      map.fitBounds([[-5, -7], [CANCHA.ancho + 5, CANCHA.largo + 7]], {
+        padding: [12, 12]
+      });
+      map.setMaxBounds([[-10, -14], [CANCHA.ancho + 10, CANCHA.largo + 14]]);
+    }
+
+    function clearMap() {
+      if (!map) return;
+      [routeLayer, heatLayer].forEach(layer => layer && map.removeLayer(layer));
+      routeLayer = heatLayer = null;
+    }
+
+    function agregarCapaCancha(layer) {
+      pitchLayers.push(layer.addTo(map));
+    }
+
+    function dibujarCancha() {
+      const largo = CANCHA.largo;
+      const ancho = CANCHA.ancho;
+      const mitadLargo = largo / 2;
+      const mitadAncho = ancho / 2;
+      const linea = {
+        pane: "pitchLinesPane",
+        color: "#f7fbf5",
+        weight: 2,
+        opacity: 0.94,
+        fill: false
+      };
+
+      agregarCapaCancha(L.rectangle([[0, 0], [ancho, largo]], {
+        pane: "pitchSurfacePane",
+        color: "#f7fbf5",
+        weight: 0,
+        fillColor: "#28752c",
+        fillOpacity: 1
+      }));
+
+      const franjas = 10;
+      for (let i = 0; i < franjas; i++) {
+        agregarCapaCancha(L.rectangle(
+          [[0.2, i * largo / franjas], [ancho - 0.2, (i + 1) * largo / franjas]],
+          {
+            pane: "pitchSurfacePane",
+            stroke: false,
+            fillColor: i % 2 === 0 ? "#2d7d31" : "#27732b",
+            fillOpacity: 0.78
+          }
+        ));
+      }
+
+      agregarCapaCancha(L.rectangle([[0, 0], [ancho, largo]], {
+        ...linea,
+        weight: 3
+      }));
+      agregarCapaCancha(L.polyline([[0, mitadLargo], [ancho, mitadLargo]], linea));
+      agregarCapaCancha(L.circle([mitadAncho, mitadLargo], {
+        ...linea,
+        radius: 9.15
+      }));
+      agregarCapaCancha(L.circleMarker([mitadAncho, mitadLargo], {
+        pane: "pitchLinesPane",
+        radius: 3,
+        color: "#f7fbf5",
+        fillColor: "#f7fbf5",
+        fillOpacity: 1,
+        weight: 1
+      }));
+
+      const areaGrandeAncho = Math.min(40.32, ancho - 4);
+      const areaChicaAncho = Math.min(18.32, ancho - 8);
+      const inicioGrande = (ancho - areaGrandeAncho) / 2;
+      const inicioChica = (ancho - areaChicaAncho) / 2;
+
+      agregarCapaCancha(L.rectangle(
+        [[inicioGrande, 0], [inicioGrande + areaGrandeAncho, 16.5]],
+        linea
+      ));
+      agregarCapaCancha(L.rectangle(
+        [[inicioGrande, largo - 16.5], [inicioGrande + areaGrandeAncho, largo]],
+        linea
+      ));
+      agregarCapaCancha(L.rectangle(
+        [[inicioChica, 0], [inicioChica + areaChicaAncho, 5.5]],
+        linea
+      ));
+      agregarCapaCancha(L.rectangle(
+        [[inicioChica, largo - 5.5], [inicioChica + areaChicaAncho, largo]],
+        linea
+      ));
+
+      agregarCapaCancha(L.rectangle(
+        [[mitadAncho - 3.66, -1.8], [mitadAncho + 3.66, 0]],
+        {
+          pane: "pitchLinesPane",
+          color: "#f7fbf5",
+          weight: 2,
+          fillColor: "#d9e4df",
+          fillOpacity: 0.35
+        }
+      ));
+      agregarCapaCancha(L.rectangle(
+        [[mitadAncho - 3.66, largo], [mitadAncho + 3.66, largo + 1.8]],
+        {
+          pane: "pitchLinesPane",
+          color: "#f7fbf5",
+          weight: 2,
+          fillColor: "#d9e4df",
+          fillOpacity: 0.35
+        }
+      ));
+
+      agregarCapaCancha(L.circleMarker([mitadAncho, 11], {
+        pane: "pitchLinesPane",
+        radius: 2.4,
+        color: "#f7fbf5",
+        fillColor: "#f7fbf5",
+        fillOpacity: 1,
+        weight: 1
+      }));
+      agregarCapaCancha(L.circleMarker([mitadAncho, largo - 11], {
+        pane: "pitchLinesPane",
+        radius: 2.4,
+        color: "#f7fbf5",
+        fillColor: "#f7fbf5",
+        fillOpacity: 1,
+        weight: 1
+      }));
+
+      const horizontal = L.divIcon({
+        className: "pitch-dimension",
+        html: `${largo.toFixed(2)} m`,
+        iconSize: [100, 16],
+        iconAnchor: [50, 8]
+      });
+      const vertical = L.divIcon({
+        className: "pitch-dimension vertical",
+        html: `${ancho.toFixed(2)} m`,
+        iconSize: [90, 16],
+        iconAnchor: [45, 8]
+      });
+      agregarCapaCancha(L.marker([-2.5, mitadLargo], {
+        pane: "pitchLabelsPane",
+        icon: horizontal,
+        interactive: false
+      }));
+      agregarCapaCancha(L.marker([mitadAncho, -4], {
+        pane: "pitchLabelsPane",
+        icon: vertical,
+        interactive: false
+      }));
+    }
+
+    function gpsAMetros(datos) {
+      const metrosLat = 111320;
+      const metrosLon = 111320 * Math.cos(CANCHA.centroLat * Math.PI / 180);
+
+      return datos.map(p => {
+        const latitud = Number(p.latitud);
+        const longitud = Number(p.longitud);
+        if (!Number.isFinite(latitud) || !Number.isFinite(longitud)) return null;
+
+        const x = ((latitud - CANCHA.centroLat) * metrosLat) + CANCHA.largo / 2;
+        const y = ((longitud - CANCHA.centroLon) * metrosLon) + CANCHA.ancho / 2;
+        const dentroX = Math.max(0.5, Math.min(CANCHA.largo - 0.5, x));
+        const dentroY = Math.max(0.5, Math.min(CANCHA.ancho - 0.5, y));
+        const velocidad = Math.max(0.3, Math.min(1, Number(p.velocidad || 0) / 8));
+        return [dentroY, dentroX, velocidad];
+      }).filter(Boolean);
+    }
+
+    function pintarMetricas(m = {}) {
+      const mapping = {
+        m_distancia_total: m.distancia_total,
+        m_velocidad_max: m.velocidad_max,
+        m_hsr: m.hsr,
+        m_sprints: m.sprints,
+        m_deceleraciones: m.deceleraciones,
+        m_dist_min: m.dist_min
+      };
+      Object.entries(mapping).forEach(([id, val]) => document.getElementById(id).textContent = fmt(val));
+    }
+
+    function fmt(value, decimals = 1) {
+      const n = Number(value || 0);
+      return n.toLocaleString("es-PA", { maximumFractionDigits: decimals });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;"
+      })[character]);
+    }
+
+    async function cargarDashboard() {
+      if (!state.sesion) return;
+      initMap();
+      const jugadorParam = state.jugador ? `?jugador_id=${state.jugador.id}` : "";
+      const [gps, metricas] = await Promise.all([
+        api(`/gps/sesion/${state.sesion.id}${jugadorParam}`),
+        api(`/metricas/guardadas/${state.sesion.id}${jugadorParam}`)
+      ]);
+      const ultima = metricas.data && metricas.data.length ? metricas.data[metricas.data.length - 1] : {};
+      pintarMetricas(ultima);
+      pintarMapa(gps.data || []);
+      if (state.jugador) await cargarHistorial(true);
+      document.getElementById("dashMsg").textContent = `Datos cargados. Puntos GPS: ${gps.total || 0}.`;
+    }
+
+    async function cargarDemo() {
+      state.demo = true;
+      mostrarApp();
+      showPage("dashboard");
+      initMap();
+      document.getElementById("dashMsg").textContent = "Generando datos GPS simulados...";
+
+      let demo;
+      try {
+        demo = await api("/demo/sesion", { auth: false });
+      } catch (error) {
+        document.getElementById("dashMsg").textContent = `No se pudo cargar la demo: ${error.message}`;
+        return;
+      }
+
+      state.coach = demo.coach;
+      state.jugador = demo.jugador;
+      state.sesion = demo.sesion;
+      localStorage.setItem("coach_activo", JSON.stringify(state.coach));
+      localStorage.setItem("jugador_activo", JSON.stringify(state.jugador));
+      localStorage.setItem("sesion_activa", JSON.stringify(state.sesion));
+
+      state.coaches = [demo.coach, ...state.coaches.filter(c => c.id !== demo.coach.id)];
+      state.jugadores = [demo.jugador, ...state.jugadores.filter(j => j.id !== demo.jugador.id)];
+      state.sesiones = [demo.sesion, ...state.sesiones.filter(s => s.id !== demo.sesion.id)];
+      pintarListas();
+      actualizarContexto();
+
+      const metrica = demo.metricas.data && demo.metricas.data.length ? demo.metricas.data[0] : {};
+      const historial = demo.historial.historial || [];
+      pintarMetricas(metrica);
+      pintarMapa(demo.gps.data || []);
+      pintarHistorial(historial);
+      pintarReporteDemo(demo);
+      const cancha = demo.cancha || {};
+      document.getElementById("dashMsg").textContent =
+        `Demo cargada en ${cancha.estadio || "cancha"}. ` +
+        `${fmt(cancha.largo_m)} × ${fmt(cancha.ancho_m)} m · ${fmt(cancha.superficie_m2)} m² · ` +
+        `${demo.gps.total || 0} puntos GPS.`;
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+        if (map) {
+          map.fitBounds([[-5, -7], [CANCHA.ancho + 5, CANCHA.largo + 7]], {
+            padding: [12, 12]
           });
-
-          if (chartDistancia) {
-            chartDistancia.destroy();
-          }
-
-          chartDistancia = new Chart(
-            document.getElementById("graficaDistancia"),
-            {
-              type: "bar",
-              data: {
-                labels: labels,
-                datasets: [
-                  {
-                    label: "Distancia total",
-                    data: distancias,
-                  },
-                ],
-              },
-            },
-          );
         }
+      }, 80);
+    }
+
+    function pintarMapa(datos) {
+      clearMap();
+      const puntos = gpsAMetros(datos);
+      document.getElementById("puntosLabel").textContent = `${puntos.length} puntos`;
+      if (!map || !puntos.length) return;
+      map.invalidateSize();
+      routeLayer = L.polyline(
+        puntos.map(([y, x]) => [y, x]),
+        {
+          pane: "routePane",
+          color: "#ffffff",
+          weight: 1.5,
+          opacity: 0.24,
+          dashArray: "4 6"
+        }
+      ).addTo(map);
+      map.fitBounds([[-5, -7], [CANCHA.ancho + 5, CANCHA.largo + 7]], {
+        padding: [12, 12]
+      });
+      setTimeout(() => {
+        map.invalidateSize();
+        if (typeof L.heatLayer === "function") {
+          heatLayer = L.heatLayer(
+            puntos,
+            {
+              pane: "heatPane",
+              radius: 34,
+              blur: 24,
+              minOpacity: 0.32,
+              gradient: {
+                0.25: "#25c968",
+                0.48: "#d8ed26",
+                0.68: "#ffb312",
+                0.86: "#f14b18",
+                1: "#c80e1a"
+              }
+            }
+          ).addTo(map);
+        }
+      }, 100);
+    }
+
+    async function cargarHistorial(silent = false) {
+      if (!state.jugador) return;
+      const data = await api(`/historial/jugador/${state.jugador.id}`);
+      const historial = data.historial || [];
+      pintarHistorial(historial);
+      if (!silent) showPage("historial");
+    }
+
+    function pintarHistorial(historial) {
+      document.getElementById("tablaHistorial").innerHTML = historial.map(h => `
+        <tr><td>${h.sesion_nombre || h.sesion_id || "--"}</td><td>${fmt(h.distancia_total)}</td><td>${fmt(h.velocidad_max)}</td><td>${fmt(h.sprints, 0)}</td><td>${fmt(h.hsr)}</td><td>${fmt(h.deceleraciones, 0)}</td><td>${fmt(h.dist_min)}</td></tr>
+      `).join("") || "<tr><td colspan='7'>Sin historial.</td></tr>";
+      pintarGraficas(historial);
+    }
+
+    function pintarGraficas(historial) {
+      const labels = historial.map((_, i) => `S${i + 1}`);
+      drawChart("chartDistancia", "line", labels, historial.map(h => Number(h.distancia_total || 0)), "#0d8f61");
+      drawChart("chartVelocidad", "line", labels, historial.map(h => Number(h.velocidad_max || 0)), "#1769aa");
+      drawChart("chartSprints", "bar", labels, historial.map(h => Number(h.sprints || 0)), "#0d171a");
+    }
+
+    function drawChart(id, type, labels, values, color) {
+      if (typeof Chart === "undefined") return;
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(document.getElementById(id), {
+        type,
+        data: { labels, datasets: [{ label: id, data: values, borderColor: color, backgroundColor: color, tension: 0.35 }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    async function cargarReporte() {
+      if (!state.sesion) return;
+      const jugadorParam = state.jugador ? `?jugador_id=${state.jugador.id}` : "";
+      const reporte = await api(`/reportes/sesion/${state.sesion.id}${jugadorParam}`);
+      pintarReporte({
+        reporte,
+        sesion: reporte.sesion || state.sesion,
+        jugador: reporte.jugador || state.jugador
+      });
+      showPage("reportes");
+    }
+
+    function pintarReporteDemo(demo) {
+      pintarReporte({
+        reporte: {
+          ...(demo.reporte || {}),
+          generado_en: new Date().toISOString()
+        },
+        sesion: demo.sesion,
+        jugador: demo.jugador
+      });
+    }
+
+    function pintarReporte({ reporte, sesion, jugador }) {
+      const nombreSesion = sesion && (sesion.nombre || sesion.id) || "Sesión";
+      const nombreJugador = jugador && (jugador.nombre || jugador.id) || "Jugador";
+      const nombreSesionSeguro = escapeHtml(nombreSesion);
+      const nombreJugadorSeguro = escapeHtml(nombreJugador);
+      const perfil = reporte.perfil_calculo || {};
+      const fecha = reporte.generado_en
+        ? new Date(reporte.generado_en).toLocaleString("es-PA")
+        : new Date().toLocaleString("es-PA");
+
+      document.getElementById("reporteTitulo").textContent = `Reporte físico · ${nombreJugador}`;
+      document.getElementById("reporteTexto").textContent = reporte.analisis ? `${reporte.analisis.conclusion} ${reporte.analisis.recomendacion}` : "Reporte demo disponible.";
+      document.getElementById("reporteMeta").innerHTML = `
+        <div><span>Jugador</span><strong>${nombreJugadorSeguro}</strong></div>
+        <div><span>Sesión</span><strong>${nombreSesionSeguro}</strong></div>
+        <div><span>Generado</span><strong>${fecha}</strong></div>
+        <div><span>Perfil</span><strong>${perfil.rango_edad || "14-18 años"} · ${perfil.nivel || "amateur"}</strong></div>
+        <div><span>HSR desde</span><strong>${fmt(perfil.hsr_desde_kmh || 16.2)} km/h</strong></div>
+        <div><span>Sprint desde</span><strong>${fmt(perfil.sprint_desde_kmh || 20.9)} km/h</strong></div>
+      `;
+      const r = reporte.resumen || {};
+      const cards = [
+        ["Distancia total", r.distancia_total, "m"],
+        ["Velocidad máxima", r.velocidad_max, "km/h"],
+        ["HSR", r.hsr, "m"],
+        ["Sprints", r.sprints, "eventos"],
+        ["Deceleraciones", r.deceleraciones, "eventos"],
+        ["Distancia/min", r.dist_min, "m/min"]
+      ];
+      document.getElementById("reporteMetricas").innerHTML = cards.map(([label, value, unit]) =>
+        `<div class="card metric"><span>${label}</span><strong>${fmt(value)}</strong><small>${unit}</small></div>`
+      ).join("");
+      reporteGenerado = true;
+    }
+
+    function imprimirReporte() {
+      if (!reporteGenerado) {
+        document.getElementById("reporteTexto").textContent = "Primero genera o carga un reporte.";
+        showPage("reportes");
+        return;
       }
-    </script>
-  </body>
+
+      const tituloAnterior = document.title;
+      document.title = `reporte-gps-${state.jugador && state.jugador.nombre || "jugador"}`;
+      document.body.classList.add("print-report");
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove("print-report");
+        document.title = tituloAnterior;
+      }, 300);
+    }
+  </script>
+</body>
 </html>
