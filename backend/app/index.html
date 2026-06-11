@@ -353,11 +353,12 @@
         timeout: 12000
       });
 
-      statusEl.textContent = "Capturando";
+      statusEl.textContent = "Buscando GPS";
       statusEl.classList.add("active");
       startBtn.disabled = true;
       stopBtn.disabled = false;
-      setLog("Captura iniciada. Mantén el teléfono firme en el chaleco.");
+      qualityText.textContent = "Buscando ubicación";
+      setLog("Solicitando ubicación precisa al teléfono...");
     }
 
     function registrarPunto(position) {
@@ -383,6 +384,7 @@
       ultimoPunto = base;
       guardarBuffer();
 
+      statusEl.textContent = "Capturando";
       document.getElementById("precision").textContent = `${Math.round(base.precision_gps)} m`;
       document.getElementById("latitud").textContent = base.latitud.toFixed(6);
       document.getElementById("longitud").textContent = base.longitud.toFixed(6);
@@ -394,9 +396,30 @@
     }
 
     function manejarError(error) {
-      setLog(`GPS no disponible: ${error.message}`);
       qualityDot.className = "dot bad";
-      qualityText.textContent = "GPS sin señal";
+
+      if (error.code === 1) {
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+        statusEl.textContent = "Permiso denegado";
+        statusEl.classList.remove("active");
+        qualityText.textContent = "Ubicación bloqueada";
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        setLog("Permite la ubicación precisa para este sitio en los ajustes del navegador y vuelve a intentar.");
+        return;
+      }
+
+      if (error.code === 2) {
+        qualityText.textContent = "Buscando señal GPS";
+        setLog("No se pudo obtener la ubicación. Activa el GPS y prueba al aire libre.");
+        return;
+      }
+
+      qualityText.textContent = "Esperando ubicación";
+      setLog("La ubicación está tardando. Mantén la pantalla abierta y prueba al aire libre.");
     }
 
     async function detenerYEnviar() {
