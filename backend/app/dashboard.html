@@ -1145,6 +1145,23 @@
       actualizarContexto();
     }
 
+    function sincronizarSeleccion(sesionSelectId, jugadorSelectId) {
+      const sesionId = document.getElementById(sesionSelectId)?.value;
+      const jugadorId = document.getElementById(jugadorSelectId)?.value;
+
+      if (sesionId) {
+        state.sesion = state.sesiones.find(s => s.id === sesionId) || state.sesion;
+        if (state.sesion) localStorage.setItem("sesion_activa", JSON.stringify(state.sesion));
+      }
+      if (jugadorId) {
+        state.jugador = state.jugadores.find(j => j.id === jugadorId) || state.jugador;
+        if (state.jugador) localStorage.setItem("jugador_activo", JSON.stringify(state.jugador));
+      }
+
+      actualizarContexto();
+      return Boolean(state.sesion && state.jugador);
+    }
+
     function initMap() {
       if (map || !document.getElementById("map") || typeof L === "undefined") return;
       map = L.map("map", {
@@ -1359,7 +1376,10 @@
     }
 
     async function cargarDashboard() {
-      if (!state.sesion) return;
+      if (!sincronizarSeleccion("dashSesion", "dashJugador")) {
+        document.getElementById("dashMsg").textContent = "Selecciona sesión y jugador para cargar dashboard.";
+        return;
+      }
       initMap();
       const jugadorParam = state.jugador ? `?jugador_id=${state.jugador.id}` : "";
       const [gps, metricas] = await Promise.all([
@@ -1465,6 +1485,7 @@
     }
 
     async function cargarHistorial(silent = false) {
+      if (!silent) sincronizarSeleccion("dashSesion", "histJugador");
       if (!state.jugador) return;
       const data = await api(`/historial/jugador/${state.jugador.id}`);
       const historial = data.historial || [];
@@ -1497,15 +1518,26 @@
     }
 
     async function cargarReporte() {
-      if (!state.sesion) return;
-      const jugadorParam = state.jugador ? `?jugador_id=${state.jugador.id}` : "";
-      const reporte = await api(`/reportes/sesion/${state.sesion.id}${jugadorParam}`);
-      pintarReporte({
-        reporte,
-        sesion: reporte.sesion || state.sesion,
-        jugador: reporte.jugador || state.jugador
-      });
-      showPage("reportes");
+      if (!sincronizarSeleccion("repSesion", "repJugador")) {
+        document.getElementById("reporteTexto").textContent = "Selecciona sesión y jugador para generar el reporte.";
+        return;
+      }
+
+      try {
+        const reporte = await api(
+          `/reportes/sesion/${state.sesion.id}?jugador_id=${state.jugador.id}`
+        );
+        if (reporte.error) throw new Error(reporte.error);
+        pintarReporte({
+          reporte,
+          sesion: reporte.sesion || state.sesion,
+          jugador: reporte.jugador || state.jugador
+        });
+        showPage("reportes");
+      } catch (error) {
+        document.getElementById("reporteTexto").textContent =
+          `No se pudo generar el reporte: ${error.message}`;
+      }
     }
 
     function pintarReporteDemo(demo) {
