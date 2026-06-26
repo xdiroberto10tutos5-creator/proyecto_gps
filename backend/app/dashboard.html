@@ -342,6 +342,29 @@
       padding: 14px;
     }
 
+    .dashboard-charts .chart-box {
+      height: 190px;
+    }
+
+    .session-summary {
+      padding: 16px;
+    }
+
+    .session-summary h3 {
+      margin: 0 0 12px;
+    }
+
+    .session-summary .report-meta {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-bottom: 10px;
+    }
+
+    .session-summary p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
     .status {
       margin: 0 0 14px;
       color: var(--muted);
@@ -621,15 +644,22 @@
         </section>
 
         <section class="grid layout">
-          <div class="card">
-            <div class="section-head"><h3>Mapa GPS</h3><span id="puntosLabel">0 puntos</span></div>
-            <div id="map"></div>
+          <div class="grid">
+            <div class="card">
+              <div class="section-head"><h3>Mapa de calor y recorrido GPS</h3><span id="puntosLabel">0 puntos</span></div>
+              <div id="map"></div>
+            </div>
+            <div class="card session-summary">
+              <h3>Resumen de la sesión</h3>
+              <div id="dashResumen" class="report-meta"></div>
+              <p id="dashResumenTexto">Selecciona un jugador y una sesión para consultar sus datos.</p>
+            </div>
           </div>
-          <aside class="grid">
+          <div class="grid dashboard-charts">
             <div class="card"><div class="section-head"><h3>Distancia</h3></div><div class="chart-box"><canvas id="chartDistancia"></canvas></div></div>
             <div class="card"><div class="section-head"><h3>Velocidad máxima</h3></div><div class="chart-box"><canvas id="chartVelocidad"></canvas></div></div>
             <div class="card"><div class="section-head"><h3>Sprints</h3></div><div class="chart-box"><canvas id="chartSprints"></canvas></div></div>
-          </aside>
+          </div>
         </section>
       </section>
 
@@ -1360,6 +1390,25 @@
       Object.entries(mapping).forEach(([id, val]) => document.getElementById(id).textContent = fmt(val));
     }
 
+    function pintarResumenDashboard({ puntos = 0, cancha = {} } = {}) {
+      const jugador = state.jugador && (state.jugador.nombre || state.jugador.id) || "Sin seleccionar";
+      const sesion = state.sesion && (state.sesion.nombre || state.sesion.id) || "Sin seleccionar";
+      const lugar = cancha.estadio || "Cancha configurada";
+      const largo = cancha.largo_m || CANCHA.largo;
+      const ancho = cancha.ancho_m || CANCHA.ancho;
+      const superficie = cancha.superficie_m2 || 4700.08;
+
+      document.getElementById("dashResumen").innerHTML = `
+        <div><span>Jugador</span><strong>${escapeHtml(jugador)}</strong></div>
+        <div><span>Sesión</span><strong>${escapeHtml(sesion)}</strong></div>
+        <div><span>Puntos GPS</span><strong>${fmt(puntos, 0)}</strong></div>
+        <div><span>Dimensiones</span><strong>${fmt(largo, 2)} × ${fmt(ancho, 2)} m</strong></div>
+      `;
+      document.getElementById("dashResumenTexto").textContent =
+        `${lugar}. Superficie representada: ${fmt(superficie, 2)} m². ` +
+        "El mapa combina el recorrido registrado y la concentración de posiciones mediante el mapa de calor.";
+    }
+
     function fmt(value, decimals = 1) {
       const n = Number(value || 0);
       return n.toLocaleString("es-PA", { maximumFractionDigits: decimals });
@@ -1390,6 +1439,15 @@
       pintarMetricas(ultima);
       pintarMapa(gps.data || []);
       if (state.jugador) await cargarHistorial(true);
+      pintarResumenDashboard({
+        puntos: gps.total || 0,
+        cancha: {
+          estadio: "Cancha del Colegio San Agustín",
+          largo_m: CANCHA.largo,
+          ancho_m: CANCHA.ancho,
+          superficie_m2: 4700.08
+        }
+      });
       document.getElementById("dashMsg").textContent = `Datos cargados. Puntos GPS: ${gps.total || 0}.`;
     }
 
@@ -1428,6 +1486,10 @@
       pintarHistorial(historial);
       pintarReporteDemo(demo);
       const cancha = demo.cancha || {};
+      pintarResumenDashboard({
+        puntos: demo.gps.total || 0,
+        cancha
+      });
       document.getElementById("dashMsg").textContent =
         `Demo cargada en ${cancha.estadio || "cancha"}. ` +
         `${fmt(cancha.largo_m)} × ${fmt(cancha.ancho_m)} m · ${fmt(cancha.superficie_m2)} m² · ` +
@@ -1502,17 +1564,17 @@
 
     function pintarGraficas(historial) {
       const labels = historial.map((_, i) => `S${i + 1}`);
-      drawChart("chartDistancia", "line", labels, historial.map(h => Number(h.distancia_total || 0)), "#0d8f61");
-      drawChart("chartVelocidad", "line", labels, historial.map(h => Number(h.velocidad_max || 0)), "#1769aa");
-      drawChart("chartSprints", "bar", labels, historial.map(h => Number(h.sprints || 0)), "#0d171a");
+      drawChart("chartDistancia", "line", labels, historial.map(h => Number(h.distancia_total || 0)), "#0d8f61", "Distancia total (m)");
+      drawChart("chartVelocidad", "line", labels, historial.map(h => Number(h.velocidad_max || 0)), "#1769aa", "Velocidad máxima (km/h)");
+      drawChart("chartSprints", "bar", labels, historial.map(h => Number(h.sprints || 0)), "#0d171a", "Sprints (eventos)");
     }
 
-    function drawChart(id, type, labels, values, color) {
+    function drawChart(id, type, labels, values, color, datasetLabel) {
       if (typeof Chart === "undefined") return;
       if (charts[id]) charts[id].destroy();
       charts[id] = new Chart(document.getElementById(id), {
         type,
-        data: { labels, datasets: [{ label: id, data: values, borderColor: color, backgroundColor: color, tension: 0.35 }] },
+        data: { labels, datasets: [{ label: datasetLabel, data: values, borderColor: color, backgroundColor: color, tension: 0.35 }] },
         options: { responsive: true, maintainAspectRatio: false }
       });
     }

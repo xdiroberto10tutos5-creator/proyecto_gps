@@ -22,7 +22,7 @@ def _timestamp(base, seconds):
 
 
 def _generar_puntos_demo():
-    """Genera vueltas sintéticas dentro del Estadio Rommel Fernández."""
+    """Genera un recorrido sintético sobre la cancha configurada para la demo."""
     base_time = datetime(2026, 6, 10, 15, 30, tzinfo=timezone.utc)
     base_lat = 9.035833
     base_lon = -79.469444
@@ -131,7 +131,7 @@ def obtener_sesion_demo():
             "coach_id": "demo-coach",
         },
         "cancha": {
-            "estadio": "Estadio Rommel Fernández",
+            "estadio": "Cancha del Colegio San Agustín",
             "superficie_m2": CANCHA_SUPERFICIE_M2,
             "perimetro_m": CANCHA_PERIMETRO_M,
             "largo_m": round(CANCHA_LARGO_M, 2),
