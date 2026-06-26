@@ -583,8 +583,8 @@
           <div class="card-pad row row-4">
             <div><label>Nombre</label><input id="jugadorNombre" /></div>
             <div><label>Posición</label><input id="jugadorPosicion" placeholder="Extremo" /></div>
-            <div><label>Edad</label><input id="jugadorEdad" type="number" /></div>
-            <div><label>Número</label><input id="jugadorNumero" type="number" /></div>
+            <div><label>Edad</label><input id="jugadorEdad" type="number" min="14" max="18" /></div>
+            <div><label>Número</label><input id="jugadorNumero" type="number" min="0" max="99" /></div>
             <button onclick="crearJugador()">Crear</button>
           </div>
         </div>
@@ -1111,16 +1111,38 @@
     }
 
     async function crearJugador() {
+      const msg = document.getElementById("jugadorMsg");
       const payload = {
         nombre: document.getElementById("jugadorNombre").value.trim(),
         posicion: document.getElementById("jugadorPosicion").value.trim() || null,
         edad: Number(document.getElementById("jugadorEdad").value) || null,
         numero: Number(document.getElementById("jugadorNumero").value) || null
       };
-      if (!payload.nombre) return;
-      await api("/jugadores/", { method: "POST", body: JSON.stringify(payload) });
-      document.getElementById("jugadorMsg").textContent = "Jugador creado.";
-      await cargarDatos();
+      if (!payload.nombre) {
+        msg.textContent = "Escribe el nombre del jugador.";
+        return;
+      }
+      if (payload.edad !== null && (payload.edad < 14 || payload.edad > 18)) {
+        msg.textContent = "La edad debe estar entre 14 y 18 años.";
+        return;
+      }
+      if (payload.numero !== null && (payload.numero < 0 || payload.numero > 99)) {
+        msg.textContent = "El número debe estar entre 0 y 99.";
+        return;
+      }
+
+      try {
+        msg.textContent = "Creando jugador...";
+        await api("/jugadores/", { method: "POST", body: JSON.stringify(payload) });
+        msg.textContent = "Jugador creado.";
+        document.getElementById("jugadorNombre").value = "";
+        document.getElementById("jugadorPosicion").value = "";
+        document.getElementById("jugadorEdad").value = "";
+        document.getElementById("jugadorNumero").value = "";
+        await cargarDatos();
+      } catch (error) {
+        msg.textContent = `No se pudo crear el jugador: ${error.message}`;
+      }
     }
 
     async function eliminarJugador(id) {
