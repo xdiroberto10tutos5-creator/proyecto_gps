@@ -1439,16 +1439,12 @@
         y: (p.longitud - refLon) * metrosLon,
         velocidad: p.velocidad
       }));
-      const minX = Math.min(...locales.map(p => p.x));
-      const maxX = Math.max(...locales.map(p => p.x));
-      const minY = Math.min(...locales.map(p => p.y));
-      const maxY = Math.max(...locales.map(p => p.y));
-      const offsetX = (CANCHA.largo / 2) - ((minX + maxX) / 2);
-      const offsetY = (CANCHA.ancho / 2) - ((minY + maxY) / 2);
+      const offsetX = CANCHA.largo / 2;
+      const offsetY = CANCHA.ancho / 2;
 
       return locales.map(p => [
-        p.y + offsetY,
-        p.x + offsetX,
+        Math.max(0.5, Math.min(CANCHA.ancho - 0.5, p.y + offsetY)),
+        Math.max(0.5, Math.min(CANCHA.largo - 0.5, p.x + offsetX)),
         p.velocidad
       ]);
     }
