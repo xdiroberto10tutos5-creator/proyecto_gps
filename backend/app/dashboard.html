@@ -634,6 +634,7 @@
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
             <button onclick="cargarDashboard()">Cargar dashboard</button>
+            <button class="danger" onclick="borrarCapturaAnterior('dashSesion', 'dashJugador')">Borrar captura GPS</button>
             <button class="secondary" onclick="cargarDemo()">Cargar demo</button>
           </div>
         </div>
@@ -1181,6 +1182,11 @@
     }
 
     async function eliminarSesion(id) {
+      const sesion = state.sesiones.find(s => s.id === id);
+      const nombre = sesion && (sesion.nombre || sesion.id) || id;
+      const confirmado = confirm(`Se borrará la sesión ${nombre} junto con sus puntos GPS y métricas. ¿Continuar?`);
+      if (!confirmado) return;
+
       await api(`/sesiones/${id}`, { method: "DELETE" });
       if (state.sesion && state.sesion.id === id) {
         state.sesion = null;
@@ -1195,9 +1201,10 @@
       await cargarDatos();
     }
 
-    async function borrarCapturaAnterior() {
-      if (!sincronizarSeleccion("capturaSesion", "capturaJugador")) {
-        document.getElementById("capturaMsg").textContent = "Selecciona la sesión de caminata y el jugador antes de borrar.";
+    async function borrarCapturaAnterior(sesionSelectId = "capturaSesion", jugadorSelectId = "capturaJugador") {
+      const msgEl = document.getElementById("capturaMsg") || document.getElementById("dashMsg");
+      if (!sincronizarSeleccion(sesionSelectId, jugadorSelectId)) {
+        msgEl.textContent = "Selecciona la sesión de caminata y el jugador antes de borrar.";
         return;
       }
 
@@ -1213,7 +1220,7 @@
       clearMap();
       pintarMetricas({});
       document.getElementById("puntosLabel").textContent = "0 puntos";
-      document.getElementById("capturaMsg").textContent =
+      msgEl.textContent =
         `Captura borrada. Puntos: ${resultado.puntos_borrados}. Métricas: ${resultado.metricas_borradas}.`;
       document.getElementById("dashMsg").textContent = "Captura anterior borrada. Ya puedes repetir la caminata.";
     }

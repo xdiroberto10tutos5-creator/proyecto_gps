@@ -95,6 +95,13 @@ def delete_metricas_by_sesion_jugador(sesion_id, jugador_id):
     )
 
 
+def delete_metricas_by_sesion(sesion_id):
+    return request_supabase(
+        "delete",
+        f"metricas?sesion_id=eq.{quote(str(sesion_id))}"
+    )
+
+
 def delete_gps_by_sesion_jugador(sesion_id, jugador_id):
     return request_supabase(
         "delete",
@@ -102,6 +109,13 @@ def delete_gps_by_sesion_jugador(sesion_id, jugador_id):
             f"gps_data?sesion_id=eq.{quote(str(sesion_id))}"
             f"&jugador_id=eq.{quote(str(jugador_id))}"
         )
+    )
+
+
+def delete_gps_by_sesion(sesion_id):
+    return request_supabase(
+        "delete",
+        f"gps_data?sesion_id=eq.{quote(str(sesion_id))}"
     )
 
 

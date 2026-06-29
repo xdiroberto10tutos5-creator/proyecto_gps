@@ -3,7 +3,14 @@ from pydantic import BaseModel, Field
 
 from app.services.auth_service import obtener_coach_actual
 from app.services.authorization_service import requerir_sesion_propia
-from app.supabase_client import delete_data, get_data, insert_data, update_data
+from app.supabase_client import (
+    delete_data,
+    delete_gps_by_sesion,
+    delete_metricas_by_sesion,
+    get_data,
+    insert_data,
+    update_data,
+)
 
 router = APIRouter()
 
@@ -40,10 +47,14 @@ def crear_sesion(data: SesionCreate):
 @router.delete("/{sesion_id}")
 def eliminar_sesion(sesion_id: str):
     requerir_sesion_propia(sesion_id)
+    gps_borrados = delete_gps_by_sesion(sesion_id)
+    metricas_borradas = delete_metricas_by_sesion(sesion_id)
     result = delete_data("sesiones", "id", sesion_id)
 
     return {
         "estado": "sesion_eliminada",
+        "gps_borrados": len(gps_borrados),
+        "metricas_borradas": len(metricas_borradas),
         "data": result
     }
 
