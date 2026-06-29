@@ -232,7 +232,7 @@
       <input id="jugador_id" autocomplete="off" placeholder="Pega el jugador_id" />
 
       <div class="controls">
-        <button id="startBtn" onclick="iniciarGPS()">Iniciar GPS</button>
+        <button id="startBtn" onclick="iniciarGPS().catch(manejarFalloInicio)">Iniciar GPS</button>
         <button id="stopBtn" class="danger" onclick="detenerYEnviar()" disabled>Detener GPS y Enviar</button>
         <button id="clearBtn" class="secondary" onclick="limpiarCaptura()">Limpiar captura local</button>
       </div>
@@ -305,6 +305,22 @@
       document.getElementById("ultimoEnvio").textContent = localStorage.getItem("gps_futbol_ultimo_envio") || "--";
     }
 
+    function desbloquearInicio() {
+      if (watchId === null) {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        statusEl.textContent = "Detenido";
+        statusEl.classList.remove("active");
+      }
+    }
+
+    function manejarFalloInicio(error) {
+      qualityDot.className = "dot bad";
+      qualityText.textContent = "No se pudo iniciar";
+      desbloquearInicio();
+      setLog(`No se pudo iniciar el GPS. ${error.message || "Intenta nuevamente."}`);
+    }
+
     function velocidadCalculada(lat1, lon1, lat2, lon2, segundos) {
       if (!segundos || segundos <= 0) return 0;
       const rad = Math.PI / 180;
@@ -317,27 +333,54 @@
     }
 
     async function iniciarGPS() {
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      statusEl.textContent = "Validando sesión";
+      statusEl.classList.add("active");
+      qualityText.textContent = "Preparando GPS";
+      setLog("Validando sesión del coach antes de pedir ubicación...");
+
+      if (!window.isSecureContext) {
+        qualityDot.className = "dot bad";
+        qualityText.textContent = "Sitio no seguro";
+        desbloquearInicio();
+        setLog("El GPS del navegador solo funciona en HTTPS. Abre la URL segura de Render que empieza con https://.");
+        return;
+      }
+
       let authResponse;
       try {
-        authResponse = await fetch("/auth/me");
+        authResponse = await fetch("/auth/me", { credentials: "same-origin" });
         if (authResponse.status === 401 && await renovarSesionAuth()) {
-          authResponse = await fetch("/auth/me");
+          authResponse = await fetch("/auth/me", { credentials: "same-origin" });
         }
       } catch {
+        qualityDot.className = "dot bad";
+        qualityText.textContent = "Sesión no verificada";
+        desbloquearInicio();
         setLog("No se pudo comprobar la sesión del coach.");
         return;
       }
       if (!authResponse.ok) {
+        qualityDot.className = "dot bad";
+        qualityText.textContent = "Inicia sesión";
+        desbloquearInicio();
         setLog("Debes iniciar sesión como coach en esta misma dirección web antes de capturar GPS.");
         return;
       }
 
       if (!sesionInput.value.trim() || !jugadorInput.value.trim()) {
+        qualityDot.className = "dot bad";
+        qualityText.textContent = "Faltan datos";
+        desbloquearInicio();
         setLog("Completa sesion_id y jugador_id antes de iniciar.");
         return;
       }
 
       if (!navigator.geolocation) {
+        qualityDot.className = "dot bad";
+        qualityText.textContent = "GPS no disponible";
+        desbloquearInicio();
         setLog("Este navegador no soporta geolocalización.");
         return;
       }
@@ -355,7 +398,6 @@
 
       statusEl.textContent = "Buscando GPS";
       statusEl.classList.add("active");
-      startBtn.disabled = true;
       stopBtn.disabled = false;
       qualityText.textContent = "Buscando ubicación";
       setLog("Solicitando ubicación precisa al teléfono...");
@@ -478,6 +520,7 @@
     async function renovarSesionAuth() {
       const response = await fetch("/auth/refresh", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({})
       });

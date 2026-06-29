@@ -44,6 +44,17 @@ class MetricasTests(unittest.TestCase):
         self.assertEqual(resultado["distancia_metros"], 0)
         self.assertEqual(resultado["segmentos_descartados"], 1)
 
+    def test_acepta_precision_moderada_de_celular(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0),
+            punto(8.980100, -79.520000, 2, 5, precision=25),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertGreater(resultado["distancia_metros"], 0)
+        self.assertEqual(resultado["segmentos_validos"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,7 +16,8 @@ PERFIL_CALCULO = "juvenil_amateur_14_18"
 UMBRAL_HSR = 4.5      # 16.2 km/h
 UMBRAL_SPRINT = 5.8   # 20.9 km/h
 UMBRAL_DECELERACION = -1.5  # m/s²
-PRECISION_MAXIMA = 15
+PRECISION_MAXIMA = 30
+MOVIMIENTO_MINIMO = 0.5
 VELOCIDAD_MAXIMA_REALISTA = 10.5  # 37.8 km/h
 
 
@@ -28,6 +29,8 @@ def obtener_perfil_calculo():
         "hsr_desde_kmh": round(UMBRAL_HSR * 3.6, 1),
         "sprint_desde_kmh": round(UMBRAL_SPRINT * 3.6, 1),
         "deceleracion_desde_ms2": UMBRAL_DECELERACION,
+        "precision_maxima_m": PRECISION_MAXIMA,
+        "movimiento_minimo_m": MOVIMIENTO_MINIMO,
         "velocidad_maxima_admitida_kmh": round(VELOCIDAD_MAXIMA_REALISTA * 3.6, 1),
     }
 
@@ -94,7 +97,7 @@ def calcular_metricas_desde_puntos(gps):
         if dt > 10:
             dt = 3
 
-        if d < 1:
+        if d < MOVIMIENTO_MINIMO:
             continue
 
         velocidad_gps = float(p2.get("velocidad") or 0)

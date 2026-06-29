@@ -3,6 +3,7 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from app.services.gps_service import (
+    borrar_captura_gps as borrar_captura_gps_service,
     guardar_lote_gps as guardar_lote_gps_service,
     obtener_gps_sesion as obtener_gps_sesion_service
 )
@@ -36,3 +37,9 @@ def guardar_lote_gps(data: GPSLote):
 def obtener_gps_sesion(sesion_id: str, jugador_id: str | None = None):
 
     return obtener_gps_sesion_service(sesion_id, jugador_id)
+
+
+@router.delete("/sesion/{sesion_id}")
+def borrar_captura_gps(sesion_id: str, jugador_id: str):
+
+    return borrar_captura_gps_service(sesion_id, jugador_id)

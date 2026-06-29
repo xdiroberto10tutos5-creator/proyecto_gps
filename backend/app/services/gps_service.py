@@ -5,6 +5,8 @@ from fastapi import HTTPException
 from app.services.authorization_service import requerir_sesion_y_jugador
 from app.services.metricas_service import guardar_metricas_calculadas
 from app.supabase_client import (
+    delete_gps_by_sesion_jugador,
+    delete_metricas_by_sesion_jugador,
     get_gps_by_sesion,
     get_gps_by_sesion_jugador,
     insert_data
@@ -70,4 +72,18 @@ def obtener_gps_sesion(sesion_id, jugador_id=None):
     return {
         "total": len(datos),
         "data": datos
+    }
+
+
+def borrar_captura_gps(sesion_id, jugador_id):
+    requerir_sesion_y_jugador(sesion_id, jugador_id)
+    gps_borrados = delete_gps_by_sesion_jugador(sesion_id, jugador_id)
+    metricas_borradas = delete_metricas_by_sesion_jugador(sesion_id, jugador_id)
+
+    return {
+        "estado": "captura_gps_borrada",
+        "sesion_id": sesion_id,
+        "jugador_id": jugador_id,
+        "puntos_borrados": len(gps_borrados),
+        "metricas_borradas": len(metricas_borradas)
     }

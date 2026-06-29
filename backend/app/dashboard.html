@@ -617,7 +617,11 @@
             <div><label>Sesión activa</label><select id="capturaSesion" onchange="seleccionarSesion(this.value)"></select></div>
             <div><label>Jugador seleccionado</label><select id="capturaJugador" onchange="seleccionarJugador(this.value)"></select></div>
           </div>
-          <a id="capturaLink" class="button-link" style="margin-top:14px" href="/app" target="_blank">Abrir /app</a>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+            <a id="capturaLink" class="button-link" href="/app" target="_blank">Abrir /app</a>
+            <button class="danger" onclick="borrarCapturaAnterior()">Borrar captura anterior</button>
+          </div>
+          <p id="capturaMsg" class="status"></p>
         </div>
       </section>
 
@@ -1191,6 +1195,29 @@
       await cargarDatos();
     }
 
+    async function borrarCapturaAnterior() {
+      if (!sincronizarSeleccion("capturaSesion", "capturaJugador")) {
+        document.getElementById("capturaMsg").textContent = "Selecciona la sesión de caminata y el jugador antes de borrar.";
+        return;
+      }
+
+      const sesionNombre = state.sesion.nombre || state.sesion.id;
+      const jugadorNombre = state.jugador.nombre || state.jugador.id;
+      const confirmado = confirm(
+        `Se borrarán los puntos GPS y métricas de ${jugadorNombre} en la sesión ${sesionNombre}. ¿Continuar?`
+      );
+      if (!confirmado) return;
+
+      const params = new URLSearchParams({ jugador_id: state.jugador.id });
+      const resultado = await api(`/gps/sesion/${state.sesion.id}?${params.toString()}`, { method: "DELETE" });
+      clearMap();
+      pintarMetricas({});
+      document.getElementById("puntosLabel").textContent = "0 puntos";
+      document.getElementById("capturaMsg").textContent =
+        `Captura borrada. Puntos: ${resultado.puntos_borrados}. Métricas: ${resultado.metricas_borradas}.`;
+      document.getElementById("dashMsg").textContent = "Captura anterior borrada. Ya puedes repetir la caminata.";
+    }
+
     function seleccionarSesion(id) {
       state.sesion = state.sesiones.find(s => s.id === id) || null;
       if (state.sesion) localStorage.setItem("sesion_activa", JSON.stringify(state.sesion));
@@ -1382,22 +1409,41 @@
       }));
     }
 
-    function gpsAMetros(datos) {
+    function gpsALocal(datos) {
       const metrosLat = 111320;
-      const metrosLon = 111320 * Math.cos(CANCHA.centroLat * Math.PI / 180);
-
-      return datos.map(p => {
+      const puntosGps = datos.map(p => {
         const latitud = Number(p.latitud);
         const longitud = Number(p.longitud);
         if (!Number.isFinite(latitud) || !Number.isFinite(longitud)) return null;
-
-        const x = ((latitud - CANCHA.centroLat) * metrosLat) + CANCHA.largo / 2;
-        const y = ((longitud - CANCHA.centroLon) * metrosLon) + CANCHA.ancho / 2;
-        const dentroX = Math.max(0.5, Math.min(CANCHA.largo - 0.5, x));
-        const dentroY = Math.max(0.5, Math.min(CANCHA.ancho - 0.5, y));
-        const velocidad = Math.max(0.3, Math.min(1, Number(p.velocidad || 0) / 8));
-        return [dentroY, dentroX, velocidad];
+        return {
+          latitud,
+          longitud,
+          velocidad: Math.max(0.3, Math.min(1, Number(p.velocidad || 0) / 8))
+        };
       }).filter(Boolean);
+
+      if (!puntosGps.length) return [];
+
+      const refLat = puntosGps[0].latitud;
+      const refLon = puntosGps[0].longitud;
+      const metrosLon = 111320 * Math.cos(refLat * Math.PI / 180);
+      const locales = puntosGps.map(p => ({
+        x: (p.latitud - refLat) * metrosLat,
+        y: (p.longitud - refLon) * metrosLon,
+        velocidad: p.velocidad
+      }));
+      const minX = Math.min(...locales.map(p => p.x));
+      const maxX = Math.max(...locales.map(p => p.x));
+      const minY = Math.min(...locales.map(p => p.y));
+      const maxY = Math.max(...locales.map(p => p.y));
+      const offsetX = (CANCHA.largo / 2) - ((minX + maxX) / 2);
+      const offsetY = (CANCHA.ancho / 2) - ((minY + maxY) / 2);
+
+      return locales.map(p => [
+        p.y + offsetY,
+        p.x + offsetX,
+        p.velocidad
+      ]);
     }
 
     function pintarMetricas(m = {}) {
@@ -1528,7 +1574,7 @@
 
     function pintarMapa(datos) {
       clearMap();
-      const puntos = gpsAMetros(datos);
+      const puntos = gpsALocal(datos);
       document.getElementById("puntosLabel").textContent = `${puntos.length} puntos`;
       if (!map || !puntos.length) return;
       map.invalidateSize();
@@ -1537,9 +1583,8 @@
         {
           pane: "routePane",
           color: "#ffffff",
-          weight: 1.5,
-          opacity: 0.24,
-          dashArray: "4 6"
+          weight: 4,
+          opacity: 0.95
         }
       ).addTo(map);
       map.fitBounds([[-5, -7], [CANCHA.ancho + 5, CANCHA.largo + 7]], {
