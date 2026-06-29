@@ -631,6 +631,23 @@
           <div class="grid cols-2">
             <div><label>Sesión</label><select id="dashSesion" onchange="seleccionarSesion(this.value)"></select></div>
             <div><label>Jugador</label><select id="dashJugador" onchange="seleccionarJugador(this.value)"></select></div>
+            <div>
+              <label>Punto inicial en cancha</label>
+              <select id="mapInicio" onchange="actualizarMapaDesdeControles()">
+                <option value="centro">Centro de la cancha</option>
+                <option value="media_borde_superior">Línea media - borde superior</option>
+                <option value="media_borde_inferior" selected>Línea media - borde inferior</option>
+              </select>
+            </div>
+            <div>
+              <label>Orientación del recorrido</label>
+              <select id="mapRotacion" onchange="actualizarMapaDesdeControles()">
+                <option value="0" selected>Normal</option>
+                <option value="90">Rotar 90°</option>
+                <option value="180">Rotar 180°</option>
+                <option value="270">Rotar 270°</option>
+              </select>
+            </div>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
             <button onclick="cargarDashboard()">Cargar dashboard</button>
@@ -737,6 +754,7 @@
     let pitchLayers = [];
     let charts = {};
     let reporteGenerado = false;
+    let ultimoGpsDashboard = [];
 
     const CANCHA = {
       largo: 94.07,
@@ -1416,6 +1434,26 @@
       }));
     }
 
+    function obtenerPuntoInicialMapa() {
+      const inicio = document.getElementById("mapInicio")?.value || "media_borde_inferior";
+      const mitadLargo = CANCHA.largo / 2;
+      const mitadAncho = CANCHA.ancho / 2;
+      const puntos = {
+        centro: { x: mitadLargo, y: mitadAncho },
+        media_borde_superior: { x: mitadLargo, y: 0.5 },
+        media_borde_inferior: { x: mitadLargo, y: CANCHA.ancho - 0.5 }
+      };
+      return puntos[inicio] || puntos.media_borde_inferior;
+    }
+
+    function rotarPunto(x, y) {
+      const rotacion = Number(document.getElementById("mapRotacion")?.value || 0);
+      if (rotacion === 90) return { x: -y, y: x };
+      if (rotacion === 180) return { x: -x, y: -y };
+      if (rotacion === 270) return { x: y, y: -x };
+      return { x, y };
+    }
+
     function gpsALocal(datos) {
       const metrosLat = 111320;
       const puntosGps = datos.map(p => {
@@ -1439,14 +1477,16 @@
         y: (p.longitud - refLon) * metrosLon,
         velocidad: p.velocidad
       }));
-      const offsetX = CANCHA.largo / 2;
-      const offsetY = CANCHA.ancho / 2;
+      const inicio = obtenerPuntoInicialMapa();
 
-      return locales.map(p => [
-        Math.max(0.5, Math.min(CANCHA.ancho - 0.5, p.y + offsetY)),
-        Math.max(0.5, Math.min(CANCHA.largo - 0.5, p.x + offsetX)),
-        p.velocidad
-      ]);
+      return locales.map(p => {
+        const rotado = rotarPunto(p.x, p.y);
+        return [
+          Math.max(0.5, Math.min(CANCHA.ancho - 0.5, rotado.y + inicio.y)),
+          Math.max(0.5, Math.min(CANCHA.largo - 0.5, rotado.x + inicio.x)),
+          p.velocidad
+        ];
+      });
     }
 
     function pintarMetricas(m = {}) {
@@ -1508,7 +1548,8 @@
       ]);
       const ultima = metricas.data && metricas.data.length ? metricas.data[metricas.data.length - 1] : {};
       pintarMetricas(ultima);
-      pintarMapa(gps.data || []);
+      ultimoGpsDashboard = gps.data || [];
+      pintarMapa(ultimoGpsDashboard);
       if (state.jugador) await cargarHistorial(true);
       pintarResumenDashboard({
         puntos: gps.total || 0,
@@ -1520,6 +1561,11 @@
         }
       });
       document.getElementById("dashMsg").textContent = `Datos cargados. Puntos GPS: ${gps.total || 0}.`;
+    }
+
+    function actualizarMapaDesdeControles() {
+      if (!ultimoGpsDashboard.length) return;
+      pintarMapa(ultimoGpsDashboard);
     }
 
     async function cargarDemo() {
