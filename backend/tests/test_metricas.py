@@ -55,6 +55,17 @@ class MetricasTests(unittest.TestCase):
         self.assertGreater(resultado["distancia_metros"], 0)
         self.assertEqual(resultado["segmentos_validos"], 1)
 
+    def test_caminata_no_cuenta_deceleracion_deportiva(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0),
+            punto(8.980030, -79.520000, 3.5, 1),
+            punto(8.980045, -79.520000, 1.0, 2),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertEqual(resultado["deceleraciones"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
