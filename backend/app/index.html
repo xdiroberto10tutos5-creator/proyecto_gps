@@ -286,7 +286,6 @@
     let puntos = cargarBuffer();
     let ultimoPunto = puntos[puntos.length - 1] || null;
     let puntosIgnorados = 0;
-    let referenciaInicial = puntos[0] || null;
 
     precargarContexto();
     pintarEstado();
@@ -400,21 +399,13 @@
       return distanciaMetros(a.latitud, a.longitud, b.latitud, b.longitud);
     }
 
-    function umbralMovimiento(puntoA, puntoB) {
+    function umbralRuido(puntoA, puntoB) {
       const precision = Math.max(
         Number(puntoA && puntoA.precision_gps || 0),
         Number(puntoB && puntoB.precision_gps || 0),
         5
       );
-      return Math.max(6, Math.min(18, precision * 1.25));
-    }
-
-    function hayMovimientoReal(desde, hasta, velocidadNativa) {
-      if (!desde) return false;
-      const distancia = distanciaEntrePuntos(desde, hasta);
-      const umbral = umbralMovimiento(desde, hasta);
-      const velocidadNativaKmh = Number(velocidadNativa || 0) * 3.6;
-      return distancia >= umbral || (velocidadNativaKmh >= 1.5 && distancia >= Math.max(4, umbral * 0.45));
+      return Math.max(2, Math.min(6, precision * 0.35));
     }
 
     function actualizarLecturaGPS(punto) {
@@ -425,15 +416,10 @@
     }
 
     function esRuidoQuieto(punto) {
-      const referencia = ultimoPunto || referenciaInicial;
-      if (!referencia) return false;
-      const distancia = distanciaMetros(
-        referencia.latitud,
-        referencia.longitud,
-        punto.latitud,
-        punto.longitud
-      );
-      return distancia < umbralMovimiento(referencia, punto);
+      if (!ultimoPunto) return false;
+      const distancia = distanciaEntrePuntos(ultimoPunto, punto);
+      const velocidadKmh = Number(punto.velocidad || 0) * 3.6;
+      return distancia < umbralRuido(ultimoPunto, punto) && velocidadKmh < 1.2;
     }
 
     async function iniciarGPS() {
@@ -493,7 +479,6 @@
 
       puntos = [];
       ultimoPunto = null;
-      referenciaInicial = null;
       puntosIgnorados = 0;
       guardarBuffer();
       pintarEstado();
@@ -530,28 +515,11 @@
         base.velocidad = Number(coords.speed || 0);
       }
 
-      if (!referenciaInicial) {
-        referenciaInicial = base;
-        ultimoPunto = base;
-        actualizarLecturaGPS(base);
-        setLog("Referencia GPS tomada. Quédate quieto hasta empezar; solo se guardarán puntos cuando camines.");
-        return;
-      }
-
-      if (!hayMovimientoReal(ultimoPunto, base, coords.speed) || esRuidoQuieto(base)) {
+      if (esRuidoQuieto(base)) {
         puntosIgnorados += 1;
-        const distanciaReferencia = distanciaEntrePuntos(ultimoPunto, base);
-        if (!puntos.length && distanciaReferencia < 2 && base.precision_gps <= ultimoPunto.precision_gps) {
-          ultimoPunto = base;
-          referenciaInicial = base;
-        }
         actualizarLecturaGPS(base);
-        setLog(`GPS activo. Sin movimiento real detectado; puntos ignorados por estar quieto: ${puntosIgnorados}.`);
+        setLog(`GPS activo. Punto ignorado por ruido de ubicación: ${puntosIgnorados}.`);
         return;
-      }
-
-      if (!puntos.length && referenciaInicial) {
-        puntos.push(referenciaInicial);
       }
 
       puntos.push(base);
@@ -664,7 +632,6 @@
       if (watchId !== null) return;
       puntos = [];
       ultimoPunto = null;
-      referenciaInicial = null;
       puntosIgnorados = 0;
       guardarBuffer();
       pintarEstado();
