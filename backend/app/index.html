@@ -286,6 +286,7 @@
     let puntos = cargarBuffer();
     let ultimoPunto = puntos[puntos.length - 1] || null;
     let puntosIgnorados = 0;
+    let referenciaInicial = puntos[0] || null;
 
     precargarContexto();
     pintarEstado();
@@ -395,21 +396,44 @@
       return velocidadCalculada(lat1, lon1, lat2, lon2, 1);
     }
 
+    function distanciaEntrePuntos(a, b) {
+      return distanciaMetros(a.latitud, a.longitud, b.latitud, b.longitud);
+    }
+
+    function umbralMovimiento(puntoA, puntoB) {
+      const precision = Math.max(
+        Number(puntoA && puntoA.precision_gps || 0),
+        Number(puntoB && puntoB.precision_gps || 0),
+        5
+      );
+      return Math.max(6, Math.min(18, precision * 1.25));
+    }
+
+    function hayMovimientoReal(desde, hasta, velocidadNativa) {
+      if (!desde) return false;
+      const distancia = distanciaEntrePuntos(desde, hasta);
+      const umbral = umbralMovimiento(desde, hasta);
+      const velocidadNativaKmh = Number(velocidadNativa || 0) * 3.6;
+      return distancia >= umbral || (velocidadNativaKmh >= 1.5 && distancia >= Math.max(4, umbral * 0.45));
+    }
+
+    function actualizarLecturaGPS(punto) {
+      document.getElementById("precision").textContent = `${Math.round(punto.precision_gps)} m`;
+      document.getElementById("latitud").textContent = punto.latitud.toFixed(6);
+      document.getElementById("longitud").textContent = punto.longitud.toFixed(6);
+      document.getElementById("velocidad").textContent = `${(punto.velocidad * 3.6).toFixed(1)} km/h`;
+    }
+
     function esRuidoQuieto(punto) {
-      if (!ultimoPunto) return false;
+      const referencia = ultimoPunto || referenciaInicial;
+      if (!referencia) return false;
       const distancia = distanciaMetros(
-        ultimoPunto.latitud,
-        ultimoPunto.longitud,
+        referencia.latitud,
+        referencia.longitud,
         punto.latitud,
         punto.longitud
       );
-      const precision = Math.max(
-        Number(punto.precision_gps || 0),
-        Number(ultimoPunto.precision_gps || 0),
-        3
-      );
-      const velocidadKmh = Number(punto.velocidad || 0) * 3.6;
-      return distancia < Math.max(2.5, precision * 0.6) && velocidadKmh < 1;
+      return distancia < umbralMovimiento(referencia, punto);
     }
 
     async function iniciarGPS() {
@@ -469,6 +493,7 @@
 
       puntos = [];
       ultimoPunto = null;
+      referenciaInicial = null;
       puntosIgnorados = 0;
       guardarBuffer();
       pintarEstado();
@@ -505,14 +530,28 @@
         base.velocidad = Number(coords.speed || 0);
       }
 
-      if (esRuidoQuieto(base)) {
+      if (!referenciaInicial) {
+        referenciaInicial = base;
+        ultimoPunto = base;
+        actualizarLecturaGPS(base);
+        setLog("Referencia GPS tomada. Quédate quieto hasta empezar; solo se guardarán puntos cuando camines.");
+        return;
+      }
+
+      if (!hayMovimientoReal(ultimoPunto, base, coords.speed) || esRuidoQuieto(base)) {
         puntosIgnorados += 1;
-        document.getElementById("precision").textContent = `${Math.round(base.precision_gps)} m`;
-        document.getElementById("latitud").textContent = base.latitud.toFixed(6);
-        document.getElementById("longitud").textContent = base.longitud.toFixed(6);
-        document.getElementById("velocidad").textContent = `${(base.velocidad * 3.6).toFixed(1)} km/h`;
+        const distanciaReferencia = distanciaEntrePuntos(ultimoPunto, base);
+        if (!puntos.length && distanciaReferencia < 2 && base.precision_gps <= ultimoPunto.precision_gps) {
+          ultimoPunto = base;
+          referenciaInicial = base;
+        }
+        actualizarLecturaGPS(base);
         setLog(`GPS activo. Sin movimiento real detectado; puntos ignorados por estar quieto: ${puntosIgnorados}.`);
         return;
+      }
+
+      if (!puntos.length && referenciaInicial) {
+        puntos.push(referenciaInicial);
       }
 
       puntos.push(base);
@@ -520,10 +559,7 @@
       guardarBuffer();
 
       statusEl.textContent = "Capturando";
-      document.getElementById("precision").textContent = `${Math.round(base.precision_gps)} m`;
-      document.getElementById("latitud").textContent = base.latitud.toFixed(6);
-      document.getElementById("longitud").textContent = base.longitud.toFixed(6);
-      document.getElementById("velocidad").textContent = `${(base.velocidad * 3.6).toFixed(1)} km/h`;
+      actualizarLecturaGPS(base);
       pintarEstado();
 
       qualityDot.className = base.precision_gps <= 10 ? "dot good" : base.precision_gps <= 20 ? "dot" : "dot bad";
@@ -628,6 +664,7 @@
       if (watchId !== null) return;
       puntos = [];
       ultimoPunto = null;
+      referenciaInicial = null;
       puntosIgnorados = 0;
       guardarBuffer();
       pintarEstado();
