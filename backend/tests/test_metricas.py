@@ -66,6 +66,18 @@ class MetricasTests(unittest.TestCase):
 
         self.assertEqual(resultado["deceleraciones"], 0)
 
+    def test_sesion_quieta_no_acumula_drift_gps(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0),
+            punto(8.980010, -79.520000, 1.2, 1),
+            punto(8.980020, -79.520000, 1.1, 2),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertEqual(resultado["distancia_metros"], 0)
+        self.assertEqual(resultado["velocidad_max_kmh"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

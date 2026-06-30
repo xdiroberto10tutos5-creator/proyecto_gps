@@ -19,6 +19,7 @@ UMBRAL_DECELERACION = -1.5  # m/s²
 VELOCIDAD_MIN_DECELERACION = UMBRAL_HSR
 PRECISION_MAXIMA = 30
 MOVIMIENTO_MINIMO = 0.5
+DISTANCIA_MINIMA_SESION = 8
 VELOCIDAD_MAXIMA_REALISTA = 10.5  # 37.8 km/h
 
 
@@ -33,6 +34,7 @@ def obtener_perfil_calculo():
         "deceleracion_velocidad_min_kmh": round(VELOCIDAD_MIN_DECELERACION * 3.6, 1),
         "precision_maxima_m": PRECISION_MAXIMA,
         "movimiento_minimo_m": MOVIMIENTO_MINIMO,
+        "distancia_minima_sesion_m": DISTANCIA_MINIMA_SESION,
         "velocidad_maxima_admitida_kmh": round(VELOCIDAD_MAXIMA_REALISTA * 3.6, 1),
     }
 
@@ -152,6 +154,14 @@ def calcular_metricas_desde_puntos(gps):
     vmax = max(velocidades) if velocidades else 0
     duracion_min = duracion_seg / 60
     dist_min = distancia / duracion_min if duracion_min > 0 else 0
+
+    if distancia < DISTANCIA_MINIMA_SESION:
+        distancia = 0
+        vmax = 0
+        hsr = 0
+        sprints = 0
+        deceleraciones = 0
+        dist_min = 0
 
     return {
         "distancia_metros": round(distancia, 2),

@@ -1536,6 +1536,8 @@
         distanciaTotal += distanciaPlano(locales[i - 1], locales[i]);
       }
 
+      if (distanciaTotal < 8) return 0;
+
       const maxDesplazamiento = Math.max(
         ...locales.map(p => Math.hypot(p.x, p.y))
       );
