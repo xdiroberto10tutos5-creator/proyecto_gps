@@ -85,7 +85,8 @@
       font-weight: 700;
     }
 
-    input {
+    input,
+    select {
       width: 100%;
       min-height: 46px;
       border: 1px solid var(--line);
@@ -97,7 +98,8 @@
       outline: none;
     }
 
-    input:focus {
+    input:focus,
+    select:focus {
       border-color: var(--accent-2);
       box-shadow: 0 0 0 3px rgba(79, 179, 255, 0.16);
     }
@@ -226,10 +228,25 @@
       </div>
 
       <label for="sesion_id">ID de sesión</label>
-      <input id="sesion_id" autocomplete="off" placeholder="Pega el sesion_id" />
+      <input id="sesion_id" autocomplete="off" placeholder="Pega el sesion_id" onchange="guardarConfiguracionMapa()" />
 
       <label for="jugador_id">ID de jugador</label>
-      <input id="jugador_id" autocomplete="off" placeholder="Pega el jugador_id" />
+      <input id="jugador_id" autocomplete="off" placeholder="Pega el jugador_id" onchange="guardarConfiguracionMapa()" />
+
+      <label for="inicio_cancha">Lugar donde empiezas</label>
+      <select id="inicio_cancha" onchange="guardarConfiguracionMapa()">
+        <option value="centro">Centro de la cancha</option>
+        <option value="media_borde_superior">Línea media - borde superior</option>
+        <option value="media_borde_inferior" selected>Línea media - borde inferior</option>
+      </select>
+
+      <label for="rotacion_mapa">Orientación esperada en el mapa</label>
+      <select id="rotacion_mapa" onchange="guardarConfiguracionMapa()">
+        <option value="0" selected>Normal</option>
+        <option value="90">Rotar 90°</option>
+        <option value="180">Rotar 180°</option>
+        <option value="270">Rotar 270°</option>
+      </select>
 
       <div class="controls">
         <button id="startBtn" onclick="iniciarGPS().catch(manejarFalloInicio)">Iniciar GPS</button>
@@ -256,6 +273,8 @@
     const params = new URLSearchParams(window.location.search);
     const sesionInput = document.getElementById("sesion_id");
     const jugadorInput = document.getElementById("jugador_id");
+    const inicioInput = document.getElementById("inicio_cancha");
+    const rotacionInput = document.getElementById("rotacion_mapa");
     const startBtn = document.getElementById("startBtn");
     const stopBtn = document.getElementById("stopBtn");
     const statusEl = document.getElementById("status");
@@ -282,6 +301,45 @@
       jugadorInput.value = jugadorId;
       document.getElementById("sesionNombre").textContent = sesionNombre;
       document.getElementById("jugadorNombre").textContent = jugadorNombre;
+      cargarConfiguracionMapa();
+      guardarConfiguracionMapa();
+    }
+
+    function claveConfiguracionMapa() {
+      const sesionId = sesionInput.value.trim();
+      const jugadorId = jugadorInput.value.trim();
+      if (!sesionId || !jugadorId) return null;
+      return `gps_futbol_mapa_${sesionId}_${jugadorId}`;
+    }
+
+    function cargarConfiguracionMapa() {
+      const inicioParam = params.get("inicio_cancha");
+      const rotacionParam = params.get("rotacion_mapa");
+      const key = claveConfiguracionMapa();
+      let guardado = null;
+      if (key) {
+        try {
+          guardado = JSON.parse(localStorage.getItem(key) || "null");
+        } catch {
+          guardado = null;
+        }
+      }
+
+      if (inicioParam || (guardado && guardado.inicio)) {
+        inicioInput.value = inicioParam || guardado.inicio;
+      }
+      if (rotacionParam || (guardado && guardado.rotacion)) {
+        rotacionInput.value = rotacionParam || guardado.rotacion;
+      }
+    }
+
+    function guardarConfiguracionMapa() {
+      const key = claveConfiguracionMapa();
+      if (!key) return;
+      localStorage.setItem(key, JSON.stringify({
+        inicio: inicioInput.value,
+        rotacion: rotacionInput.value
+      }));
     }
 
     function cargarBuffer() {
@@ -376,6 +434,8 @@
         setLog("Completa sesion_id y jugador_id antes de iniciar.");
         return;
       }
+
+      guardarConfiguracionMapa();
 
       if (!navigator.geolocation) {
         qualityDot.className = "dot bad";
