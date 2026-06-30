@@ -616,6 +616,23 @@
           <div class="grid cols-2">
             <div><label>Sesión activa</label><select id="capturaSesion" onchange="seleccionarSesion(this.value)"></select></div>
             <div><label>Jugador seleccionado</label><select id="capturaJugador" onchange="seleccionarJugador(this.value)"></select></div>
+            <div>
+              <label>Inicio de la captura</label>
+              <select id="capturaInicio" onchange="guardarConfiguracionMapaDesdeCaptura()">
+                <option value="centro">Centro de la cancha</option>
+                <option value="media_borde_superior">Línea media - borde superior</option>
+                <option value="media_borde_inferior" selected>Línea media - borde inferior</option>
+              </select>
+            </div>
+            <div>
+              <label>Orientación esperada</label>
+              <select id="capturaRotacion" onchange="guardarConfiguracionMapaDesdeCaptura()">
+                <option value="0" selected>Normal</option>
+                <option value="90">Rotar 90°</option>
+                <option value="180">Rotar 180°</option>
+                <option value="270">Rotar 270°</option>
+              </select>
+            </div>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
             <a id="capturaLink" class="button-link" href="/app" target="_blank">Abrir /app</a>
@@ -979,10 +996,63 @@
         params.set("jugador_id", state.jugador.id);
         params.set("jugador_nombre", state.jugador.nombre || "");
       }
+      const configMapa = obtenerConfiguracionMapa();
+      if (configMapa) {
+        params.set("inicio_cancha", configMapa.inicio);
+        params.set("rotacion_mapa", configMapa.rotacion);
+      }
       const href = `/app${params.toString() ? "?" + params.toString() : ""}`;
       document.getElementById("mobileLink").href = href;
       document.getElementById("capturaLink").href = href;
       actualizarSelects();
+      aplicarConfiguracionMapaGuardada();
+    }
+
+    function claveConfiguracionMapa() {
+      if (!state.sesion || !state.jugador) return null;
+      return `gps_futbol_mapa_${state.sesion.id}_${state.jugador.id}`;
+    }
+
+    function obtenerConfiguracionMapa() {
+      const key = claveConfiguracionMapa();
+      if (!key) return null;
+      try {
+        return JSON.parse(localStorage.getItem(key) || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function guardarConfiguracionMapa(inicio, rotacion) {
+      const key = claveConfiguracionMapa();
+      if (!key) return;
+      localStorage.setItem(key, JSON.stringify({ inicio, rotacion }));
+    }
+
+    function aplicarValorSelect(id, value) {
+      const el = document.getElementById(id);
+      if (el && value !== undefined && value !== null) el.value = String(value);
+    }
+
+    function aplicarConfiguracionMapaGuardada() {
+      const config = obtenerConfiguracionMapa();
+      if (!config) return;
+      aplicarValorSelect("capturaInicio", config.inicio);
+      aplicarValorSelect("capturaRotacion", config.rotacion);
+      aplicarValorSelect("mapInicio", config.inicio);
+      aplicarValorSelect("mapRotacion", config.rotacion);
+    }
+
+    function guardarConfiguracionMapaDesdeCaptura() {
+      const inicio = document.getElementById("capturaInicio").value;
+      const rotacion = document.getElementById("capturaRotacion").value;
+      if (!sincronizarSeleccion("capturaSesion", "capturaJugador")) return;
+      guardarConfiguracionMapa(inicio, rotacion);
+      aplicarValorSelect("capturaInicio", inicio);
+      aplicarValorSelect("capturaRotacion", rotacion);
+      aplicarValorSelect("mapInicio", inicio);
+      aplicarValorSelect("mapRotacion", rotacion);
+      actualizarContexto();
     }
 
     async function iniciarSesionCoach() {
@@ -1598,6 +1668,14 @@
     }
 
     function actualizarMapaDesdeControles() {
+      if (state.sesion && state.jugador) {
+        guardarConfiguracionMapa(
+          document.getElementById("mapInicio").value,
+          document.getElementById("mapRotacion").value
+        );
+        aplicarValorSelect("capturaInicio", document.getElementById("mapInicio").value);
+        aplicarValorSelect("capturaRotacion", document.getElementById("mapRotacion").value);
+      }
       if (!ultimoGpsDashboard.length) return;
       pintarMapa(ultimoGpsDashboard);
     }
