@@ -1544,10 +1544,16 @@
       const jugadorParam = state.jugador ? `?jugador_id=${state.jugador.id}` : "";
       const [gps, metricas] = await Promise.all([
         api(`/gps/sesion/${state.sesion.id}${jugadorParam}`),
-        api(`/metricas/guardadas/${state.sesion.id}${jugadorParam}`)
+        api(`/metricas/sesion/${state.sesion.id}${jugadorParam}`)
       ]);
-      const ultima = metricas.data && metricas.data.length ? metricas.data[metricas.data.length - 1] : {};
-      pintarMetricas(ultima);
+      pintarMetricas({
+        distancia_total: metricas.distancia_metros,
+        velocidad_max: metricas.velocidad_max_kmh,
+        hsr: metricas.hsr_metros,
+        sprints: metricas.sprints,
+        deceleraciones: metricas.deceleraciones,
+        dist_min: metricas.distancia_por_minuto
+      });
       ultimoGpsDashboard = gps.data || [];
       pintarMapa(ultimoGpsDashboard);
       if (state.jugador) await cargarHistorial(true);
