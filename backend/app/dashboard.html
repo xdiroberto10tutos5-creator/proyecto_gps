@@ -1454,6 +1454,33 @@
       return { x, y };
     }
 
+    function distanciaPlano(a, b) {
+      return Math.hypot(b.x - a.x, b.y - a.y);
+    }
+
+    function factorEscalaVisual(locales) {
+      if (locales.length < 2) return 1;
+
+      let distanciaTotal = 0;
+      for (let i = 1; i < locales.length; i++) {
+        distanciaTotal += distanciaPlano(locales[i - 1], locales[i]);
+      }
+
+      const maxDesplazamiento = Math.max(
+        ...locales.map(p => Math.hypot(p.x, p.y))
+      );
+      if (!distanciaTotal || !maxDesplazamiento) return 1;
+
+      const distanciaFinal = distanciaPlano(locales[0], locales[locales.length - 1]);
+      const pareceIdaYVuelta = distanciaFinal <= distanciaTotal * 0.45;
+      if (!pareceIdaYVuelta) return 1;
+
+      const maxEsperado = Math.min(distanciaTotal / 2, CANCHA.largo / 2);
+      return maxDesplazamiento > maxEsperado
+        ? maxEsperado / maxDesplazamiento
+        : 1;
+    }
+
     function gpsALocal(datos) {
       const metrosLat = 111320;
       const puntosGps = datos.map(p => {
@@ -1478,9 +1505,10 @@
         velocidad: p.velocidad
       }));
       const inicio = obtenerPuntoInicialMapa();
+      const escala = factorEscalaVisual(locales);
 
       return locales.map(p => {
-        const rotado = rotarPunto(p.x, p.y);
+        const rotado = rotarPunto(p.x * escala, p.y * escala);
         return [
           Math.max(0.5, Math.min(CANCHA.ancho - 0.5, rotado.y + inicio.y)),
           Math.max(0.5, Math.min(CANCHA.largo - 0.5, rotado.x + inicio.x)),
