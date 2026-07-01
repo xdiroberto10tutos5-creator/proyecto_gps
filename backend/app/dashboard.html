@@ -273,11 +273,45 @@
       font-weight: 750;
     }
 
-    #map {
+    .map-tabs {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .map-tab {
+      min-height: 34px;
+      padding: 0 10px;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      background: #fff;
+      font-size: 0.86rem;
+    }
+
+    .map-tab.active {
+      color: #fff;
+      border-color: var(--green);
+      background: var(--green);
+    }
+
+    #map,
+    #realMap {
       width: 100%;
       height: 500px;
       border-radius: 0 0 8px 8px;
+    }
+
+    #map {
       background: #183b25;
+    }
+
+    #realMap {
+      background: #dce7ea;
+    }
+
+    .hidden-map {
+      display: none;
     }
 
     .pitch-dimension {
@@ -436,7 +470,7 @@
       .row, .row-4, .cols-2, .cols-3, .cols-6 { grid-template-columns: 1fr; }
       .item { grid-template-columns: 1fr; }
       .topbar { align-items: flex-start; flex-direction: column; }
-      #map { height: 420px; }
+      #map, #realMap { height: 420px; }
       .report-meta { grid-template-columns: 1fr; }
     }
 
@@ -685,8 +719,16 @@
         <section class="grid layout">
           <div class="grid">
             <div class="card">
-              <div class="section-head"><h3>Mapa de calor y recorrido GPS</h3><span id="puntosLabel">0 puntos</span></div>
-              <div id="map"></div>
+              <div class="section-head">
+                <h3>Mapa de calor y recorrido GPS</h3>
+                <div class="map-tabs">
+                  <button id="mapTabReal" class="map-tab active" onclick="cambiarVistaMapa('real')">Mapa real</button>
+                  <button id="mapTabCancha" class="map-tab" onclick="cambiarVistaMapa('cancha')">Cancha</button>
+                  <span id="puntosLabel">0 puntos</span>
+                </div>
+              </div>
+              <div id="realMap"></div>
+              <div id="map" class="hidden-map"></div>
             </div>
             <div class="card session-summary">
               <h3>Resumen de la sesión</h3>
@@ -766,12 +808,16 @@
     };
 
     let map = null;
+    let realMap = null;
     let routeLayer = null;
     let heatLayer = null;
+    let realRouteLayer = null;
+    let realMarkerLayer = null;
     let pitchLayers = [];
     let charts = {};
     let reporteGenerado = false;
     let ultimoGpsDashboard = [];
+    let vistaMapa = "real";
 
     const CANCHA = {
       largo: 94.07,
@@ -1358,10 +1404,40 @@
       map.setMaxBounds([[-10, -14], [CANCHA.ancho + 10, CANCHA.largo + 14]]);
     }
 
+    function initRealMap() {
+      if (realMap || !document.getElementById("realMap") || typeof L === "undefined") return;
+      realMap = L.map("realMap", {
+        zoomControl: true,
+        attributionControl: true
+      });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
+      }).addTo(realMap);
+      realMap.setView([CANCHA.centroLat, CANCHA.centroLon], 17);
+    }
+
     function clearMap() {
-      if (!map) return;
-      [routeLayer, heatLayer].forEach(layer => layer && map.removeLayer(layer));
+      if (map) {
+        [routeLayer, heatLayer].forEach(layer => layer && map.removeLayer(layer));
+      }
+      if (realMap) {
+        [realRouteLayer, realMarkerLayer].forEach(layer => layer && realMap.removeLayer(layer));
+      }
       routeLayer = heatLayer = null;
+      realRouteLayer = realMarkerLayer = null;
+    }
+
+    function cambiarVistaMapa(vista) {
+      vistaMapa = vista;
+      document.getElementById("realMap").classList.toggle("hidden-map", vista !== "real");
+      document.getElementById("map").classList.toggle("hidden-map", vista !== "cancha");
+      document.getElementById("mapTabReal").classList.toggle("active", vista === "real");
+      document.getElementById("mapTabCancha").classList.toggle("active", vista === "cancha");
+      setTimeout(() => {
+        if (vista === "real" && realMap) realMap.invalidateSize();
+        if (vista === "cancha" && map) map.invalidateSize();
+      }, 80);
     }
 
     function agregarCapaCancha(layer) {
@@ -1743,6 +1819,82 @@
       return Number(puntoA[3] || 0) >= 0.3 || Number(puntoB[3] || 0) >= 0.3;
     }
 
+    function colorVelocidad(velocidadMs) {
+      if (velocidadMs >= 4.5) return "#f14b18";
+      if (velocidadMs >= 2.2) return "#ffb312";
+      if (velocidadMs >= 0.3) return "#19a86b";
+      return "#1769aa";
+    }
+
+    function puntosGpsReales(datos) {
+      return datos.map(p => {
+        const latitud = Number(p.latitud);
+        const longitud = Number(p.longitud);
+        if (!Number.isFinite(latitud) || !Number.isFinite(longitud)) return null;
+        return {
+          latitud,
+          longitud,
+          velocidad_ms: Math.max(0, Number(p.velocidad || 0))
+        };
+      }).filter(Boolean);
+    }
+
+    function pintarMapaReal(datos) {
+      if (!realMap) return;
+      const puntos = puntosGpsReales(datos);
+      if (!puntos.length) return;
+
+      const capasRuta = [];
+      if (puntos.length === 1) {
+        capasRuta.push(L.circleMarker([puntos[0].latitud, puntos[0].longitud], {
+          radius: 7,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: "#19a86b",
+          fillOpacity: 0.95
+        }));
+      } else {
+        for (let i = 1; i < puntos.length; i++) {
+          const anterior = puntos[i - 1];
+          const actual = puntos[i];
+          capasRuta.push(L.polyline(
+            [[anterior.latitud, anterior.longitud], [actual.latitud, actual.longitud]],
+            {
+              color: colorVelocidad(Math.max(anterior.velocidad_ms, actual.velocidad_ms)),
+              weight: 6,
+              opacity: 0.88,
+              lineCap: "round",
+              lineJoin: "round"
+            }
+          ));
+        }
+      }
+
+      realRouteLayer = L.layerGroup(capasRuta).addTo(realMap);
+      const inicio = puntos[0];
+      const fin = puntos[puntos.length - 1];
+      realMarkerLayer = L.layerGroup([
+        L.circleMarker([inicio.latitud, inicio.longitud], {
+          radius: 7,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: "#0d8f61",
+          fillOpacity: 1
+        }).bindTooltip("Inicio"),
+        L.circleMarker([fin.latitud, fin.longitud], {
+          radius: 7,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: "#c94343",
+          fillOpacity: 1
+        }).bindTooltip("Final")
+      ]).addTo(realMap);
+
+      const bounds = L.latLngBounds(puntos.map(p => [p.latitud, p.longitud]));
+      realMap.fitBounds(bounds.pad(0.18), { maxZoom: 19 });
+      setTimeout(() => realMap.invalidateSize(), 80);
+    }
+
     function pintarMetricas(m = {}) {
       const mapping = {
         m_distancia_total: m.distancia_total,
@@ -1795,6 +1947,8 @@
         return;
       }
       initMap();
+      initRealMap();
+      cambiarVistaMapa(vistaMapa);
       const jugadorParam = state.jugador ? `?jugador_id=${state.jugador.id}` : "";
       const [gps, metricas] = await Promise.all([
         api(`/gps/sesion/${state.sesion.id}${jugadorParam}`),
@@ -1810,6 +1964,7 @@
       });
       ultimoGpsDashboard = gps.data || [];
       pintarMapa(ultimoGpsDashboard);
+      pintarMapaReal(ultimoGpsDashboard);
       if (state.jugador) await cargarHistorial(true);
       pintarResumenDashboard({
         puntos: gps.total || 0,
@@ -1834,6 +1989,7 @@
       }
       if (!ultimoGpsDashboard.length) return;
       pintarMapa(ultimoGpsDashboard);
+      pintarMapaReal(ultimoGpsDashboard);
     }
 
     async function cargarDemo() {
@@ -1841,6 +1997,8 @@
       mostrarApp();
       showPage("dashboard");
       initMap();
+      initRealMap();
+      cambiarVistaMapa(vistaMapa);
       document.getElementById("dashMsg").textContent = "Generando datos GPS simulados...";
 
       let demo;
@@ -1867,7 +2025,9 @@
       const metrica = demo.metricas.data && demo.metricas.data.length ? demo.metricas.data[0] : {};
       const historial = demo.historial.historial || [];
       pintarMetricas(metrica);
-      pintarMapa(demo.gps.data || []);
+      ultimoGpsDashboard = demo.gps.data || [];
+      pintarMapa(ultimoGpsDashboard);
+      pintarMapaReal(ultimoGpsDashboard);
       pintarHistorial(historial);
       pintarReporteDemo(demo);
       const cancha = demo.cancha || {};
@@ -1880,6 +2040,7 @@
         `${fmt(cancha.largo_m)} × ${fmt(cancha.ancho_m)} m · ${fmt(cancha.superficie_m2)} m² · ` +
         `${demo.gps.total || 0} puntos GPS.`;
       setTimeout(() => {
+        if (realMap) realMap.invalidateSize();
         if (map) map.invalidateSize();
         if (map) {
           map.fitBounds([[-5, -7], [CANCHA.ancho + 5, CANCHA.largo + 7]], {
