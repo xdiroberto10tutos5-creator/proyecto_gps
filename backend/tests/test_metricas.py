@@ -169,6 +169,19 @@ class MetricasTests(unittest.TestCase):
         self.assertEqual(resultado["deceleraciones"], 0)
         self.assertLess(resultado["velocidad_max_kmh"], 10)
 
+    def test_pico_aislado_no_cuenta_hsr_ni_deceleracion(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0, precision=6),
+            punto(8.980045, -79.520000, 4.7, 1, precision=6),
+            punto(8.980065, -79.520000, 1.0, 2, precision=6),
+            punto(8.980085, -79.520000, 1.0, 3, precision=6),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertEqual(resultado["hsr_metros"], 0)
+        self.assertEqual(resultado["deceleraciones"], 0)
+
     def test_sprint_hsr_valido(self):
         puntos = [
             punto(8.980000, -79.520000, 0, 0),

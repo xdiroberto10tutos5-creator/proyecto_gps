@@ -103,8 +103,22 @@ def suavizar_puntos_caminata(gps):
     if len(gps) < 4:
         return gps
 
-    velocidades = [float(p.get("velocidad") or 0) for p in gps]
-    if max(velocidades or [0]) >= UMBRAL_HSR:
+    velocidades_distancia = []
+    for i in range(1, len(gps)):
+        t1 = parse_timestamp(gps[i - 1].get("timestamp"))
+        t2 = parse_timestamp(gps[i].get("timestamp"))
+        dt = (t2 - t1).total_seconds() if t1 and t2 else 0
+        if dt <= 0:
+            continue
+        d = haversine(
+            float(gps[i - 1]["latitud"]),
+            float(gps[i - 1]["longitud"]),
+            float(gps[i]["latitud"]),
+            float(gps[i]["longitud"])
+        )
+        velocidades_distancia.append(d / dt)
+
+    if max(velocidades_distancia or [0]) >= UMBRAL_HSR:
         return gps
 
     precisiones = sorted(float(p.get("precision_gps") or 0) for p in gps if p.get("precision_gps"))
@@ -159,6 +173,9 @@ def calcular_metricas_desde_puntos(gps):
     velocidad_anterior_valida = None
     en_sprint = False
     en_deceleracion = False
+    hsr_distancia_actual = 0
+    hsr_segmentos_actuales = 0
+    velocidad_anterior_hsr_sostenida = False
 
     for i in range(1, len(gps)):
         p1 = gps[i - 1]
@@ -219,7 +236,7 @@ def calcular_metricas_desde_puntos(gps):
         deceleracion_intensa = (
             aceleracion <= UMBRAL_DECELERACION
             and velocidad_anterior_valida is not None
-            and velocidad_anterior_valida >= VELOCIDAD_MIN_DECELERACION
+            and velocidad_anterior_hsr_sostenida
         )
 
         if deceleracion_intensa:
@@ -230,7 +247,13 @@ def calcular_metricas_desde_puntos(gps):
             en_deceleracion = False
 
         if velocidad >= UMBRAL_HSR:
-            hsr += d
+            hsr_distancia_actual += d
+            hsr_segmentos_actuales += 1
+        else:
+            if hsr_segmentos_actuales >= 2:
+                hsr += hsr_distancia_actual
+            hsr_distancia_actual = 0
+            hsr_segmentos_actuales = 0
 
         if velocidad >= UMBRAL_SPRINT:
             if not en_sprint:
@@ -240,6 +263,10 @@ def calcular_metricas_desde_puntos(gps):
             en_sprint = False
 
         velocidad_anterior_valida = velocidad
+        velocidad_anterior_hsr_sostenida = hsr_segmentos_actuales >= 2
+
+    if hsr_segmentos_actuales >= 2:
+        hsr += hsr_distancia_actual
 
     vmax = max(velocidades) if velocidades else 0
     if vmax < UMBRAL_HSR:

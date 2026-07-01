@@ -595,8 +595,11 @@
       document.getElementById("latitud").textContent = punto.latitud.toFixed(6);
       document.getElementById("longitud").textContent = punto.longitud.toFixed(6);
       document.getElementById("velocidad").textContent = `${(punto.velocidad * 3.6).toFixed(1)} km/h`;
-      document.getElementById("movimientoLive").textContent =
-        punto.velocidad >= VELOCIDAD_CAMINATA_MS ? "En movimiento" : "Quieto";
+      actualizarEstadoMovimiento(punto.velocidad >= VELOCIDAD_CAMINATA_MS ? "En movimiento" : "Quieto");
+    }
+
+    function actualizarEstadoMovimiento(texto) {
+      document.getElementById("movimientoLive").textContent = texto;
     }
 
     function actualizarCalidad(punto) {
@@ -627,6 +630,7 @@
       }
 
       punto.velocidad = velocidadConfiable(coords, referencia, punto);
+      actualizarLecturaGPS(punto);
       const distancia = distanciaEntrePuntos(referencia, punto);
       const umbral = umbralMovimiento(referencia, punto);
       const segundos = Math.max(0.1, (new Date(punto.timestamp) - new Date(referencia.timestamp)) / 1000);
@@ -640,6 +644,7 @@
 
       if (distancia < umbral && punto.velocidad < VELOCIDAD_CAMINATA_MS) {
         candidatosMovimiento = [];
+        actualizarEstadoMovimiento("Quieto");
         descartarPunto("quieto", "Sin movimiento real detectado");
         return;
       }
@@ -655,6 +660,7 @@
         && (velocidadSostenida || distanciaSostenida >= umbral);
 
       if (!movimientoConfirmado) {
+        actualizarEstadoMovimiento("Confirmando");
         descartarPunto("quieto", "Posible movimiento, confirmando señal");
         return;
       }
@@ -673,6 +679,7 @@
       });
 
       statusEl.textContent = "Capturando";
+      actualizarEstadoMovimiento("En movimiento");
       setLog(`Capturando. ${resumenContadores()}`);
     }
 
