@@ -1553,6 +1553,84 @@
         : 1;
     }
 
+    function distanciaLocalTotal(locales) {
+      let total = 0;
+      for (let i = 1; i < locales.length; i++) {
+        total += distanciaPlano(locales[i - 1], locales[i]);
+      }
+      return total;
+    }
+
+    function limitesLocales(locales) {
+      return locales.reduce((acc, p) => ({
+        minX: Math.min(acc.minX, p.x),
+        maxX: Math.max(acc.maxX, p.x),
+        minY: Math.min(acc.minY, p.y),
+        maxY: Math.max(acc.maxY, p.y)
+      }), {
+        minX: Infinity,
+        maxX: -Infinity,
+        minY: Infinity,
+        maxY: -Infinity
+      });
+    }
+
+    function esVueltaDeCancha(locales) {
+      if (locales.length < 40) return false;
+      const distanciaTotal = distanciaLocalTotal(locales);
+      if (distanciaTotal < 180) return false;
+      const limites = limitesLocales(locales);
+      const anchoGps = limites.maxX - limites.minX;
+      const altoGps = limites.maxY - limites.minY;
+      return anchoGps >= 20 && altoGps >= 20;
+    }
+
+    function ajustarVueltaACancha(locales) {
+      const margen = 3;
+      const centro = locales.reduce((acc, p) => ({
+        x: acc.x + p.x / locales.length,
+        y: acc.y + p.y / locales.length
+      }), { x: 0, y: 0 });
+      const cov = locales.reduce((acc, p) => {
+        const x = p.x - centro.x;
+        const y = p.y - centro.y;
+        acc.xx += x * x;
+        acc.yy += y * y;
+        acc.xy += x * y;
+        return acc;
+      }, { xx: 0, yy: 0, xy: 0 });
+      const angulo = 0.5 * Math.atan2(2 * cov.xy, cov.xx - cov.yy);
+      let alineados = locales.map(p => {
+        const x = p.x - centro.x;
+        const y = p.y - centro.y;
+        return {
+          x: x * Math.cos(-angulo) - y * Math.sin(-angulo),
+          y: x * Math.sin(-angulo) + y * Math.cos(-angulo),
+          velocidad_ms: p.velocidad_ms
+        };
+      });
+      let limites = limitesLocales(alineados);
+      if ((limites.maxX - limites.minX) < (limites.maxY - limites.minY)) {
+        alineados = alineados.map(p => ({
+          x: -p.y,
+          y: p.x,
+          velocidad_ms: p.velocidad_ms
+        }));
+        limites = limitesLocales(alineados);
+      }
+      const anchoGps = Math.max(1, limites.maxX - limites.minX);
+      const altoGps = Math.max(1, limites.maxY - limites.minY);
+      const escalaX = (CANCHA.largo - margen * 2) / anchoGps;
+      const escalaY = (CANCHA.ancho - margen * 2) / altoGps;
+
+      return alineados.map(p => [
+        Math.max(0.5, Math.min(CANCHA.ancho - 0.5, margen + (p.y - limites.minY) * escalaY)),
+        Math.max(0.5, Math.min(CANCHA.largo - 0.5, margen + (p.x - limites.minX) * escalaX)),
+        Math.max(0.18, Math.min(1, p.velocidad_ms / 2.5)),
+        p.velocidad_ms
+      ]);
+    }
+
     function gpsALocal(datos) {
       const metrosLat = 111320;
       const puntosGps = datos.map(p => {
@@ -1577,6 +1655,19 @@
         velocidad_ms: p.velocidad_ms
       }));
       const inicio = obtenerPuntoInicialMapa();
+      const rotados = locales.map(p => {
+        const rotado = rotarPunto(p.x, p.y);
+        return {
+          x: rotado.x,
+          y: rotado.y,
+          velocidad_ms: p.velocidad_ms
+        };
+      });
+
+      if (esVueltaDeCancha(rotados)) {
+        return ajustarVueltaACancha(rotados);
+      }
+
       const escala = factorEscalaVisual(locales);
 
       return locales.map(p => {
