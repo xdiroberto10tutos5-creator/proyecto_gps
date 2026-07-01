@@ -133,6 +133,27 @@ class MetricasTests(unittest.TestCase):
         self.assertEqual(resultado["hsr_metros"], 0)
         self.assertEqual(resultado["deceleraciones"], 0)
 
+    def test_caminata_recta_con_zigzag_gps_no_duplica_distancia(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0, precision=9),
+            punto(8.980045, -79.519955, 1.1, 4, precision=10),
+            punto(8.980090, -79.520045, 1.1, 8, precision=9),
+            punto(8.980135, -79.519955, 1.1, 12, precision=10),
+            punto(8.980180, -79.520045, 1.1, 16, precision=9),
+            punto(8.980225, -79.520000, 1.1, 20, precision=9),
+            punto(8.980180, -79.520045, 1.1, 24, precision=9),
+            punto(8.980135, -79.519955, 1.1, 28, precision=10),
+            punto(8.980090, -79.520045, 1.1, 32, precision=9),
+            punto(8.980045, -79.519955, 1.1, 36, precision=10),
+            punto(8.980000, -79.520000, 1.1, 40, precision=9),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertGreater(resultado["distancia_metros"], 35)
+        self.assertLess(resultado["distancia_metros"], 65)
+        self.assertLess(resultado["puntos_metricas"], resultado["puntos_gps"])
+
     def test_sprint_hsr_valido(self):
         puntos = [
             punto(8.980000, -79.520000, 0, 0),

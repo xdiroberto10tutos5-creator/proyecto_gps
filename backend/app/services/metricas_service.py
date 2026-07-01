@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from math import cos, pi
 
 from fastapi import HTTPException
 
@@ -22,6 +23,7 @@ MOVIMIENTO_MINIMO = 0.5
 DISTANCIA_MINIMA_SESION = 8
 VELOCIDAD_MAXIMA_REALISTA = 10.5  # 37.8 km/h
 ACELERACION_MAXIMA_REALISTA = 5.0
+TOLERANCIA_SUAVIZADO_CAMINATA = 5.0
 
 
 def obtener_perfil_calculo():
@@ -38,6 +40,7 @@ def obtener_perfil_calculo():
         "distancia_minima_sesion_m": DISTANCIA_MINIMA_SESION,
         "velocidad_maxima_admitida_kmh": round(VELOCIDAD_MAXIMA_REALISTA * 3.6, 1),
         "aceleracion_maxima_admitida_ms2": ACELERACION_MAXIMA_REALISTA,
+        "tolerancia_suavizado_caminata_m": TOLERANCIA_SUAVIZADO_CAMINATA,
     }
 
 
@@ -63,7 +66,72 @@ def obtener_puntos_gps(sesion_id, jugador_id=None):
     return get_gps_by_sesion(sesion_id)
 
 
+def distancia_punto_segmento(p, a, b):
+    dx = b["x"] - a["x"]
+    dy = b["y"] - a["y"]
+    if dx == 0 and dy == 0:
+        return ((p["x"] - a["x"]) ** 2 + (p["y"] - a["y"]) ** 2) ** 0.5
+
+    t = ((p["x"] - a["x"]) * dx + (p["y"] - a["y"]) * dy) / (dx * dx + dy * dy)
+    t = max(0, min(1, t))
+    proy_x = a["x"] + t * dx
+    proy_y = a["y"] + t * dy
+    return ((p["x"] - proy_x) ** 2 + (p["y"] - proy_y) ** 2) ** 0.5
+
+
+def simplificar_indices(locales, inicio, fin, tolerancia):
+    mayor_distancia = 0
+    mayor_indice = None
+
+    for i in range(inicio + 1, fin):
+        distancia = distancia_punto_segmento(locales[i], locales[inicio], locales[fin])
+        if distancia > mayor_distancia:
+            mayor_distancia = distancia
+            mayor_indice = i
+
+    if mayor_indice is not None and mayor_distancia > tolerancia:
+        izquierda = simplificar_indices(locales, inicio, mayor_indice, tolerancia)
+        derecha = simplificar_indices(locales, mayor_indice, fin, tolerancia)
+        return izquierda[:-1] + derecha
+
+    return [inicio, fin]
+
+
+def suavizar_puntos_caminata(gps):
+    if len(gps) < 4:
+        return gps
+
+    velocidades = [float(p.get("velocidad") or 0) for p in gps]
+    if max(velocidades or [0]) >= UMBRAL_HSR:
+        return gps
+
+    precisiones = sorted(float(p.get("precision_gps") or 0) for p in gps if p.get("precision_gps"))
+    precision_media = precisiones[len(precisiones) // 2] if precisiones else 10
+    tolerancia = max(TOLERANCIA_SUAVIZADO_CAMINATA, min(12, precision_media * 0.75))
+
+    ref_lat = float(gps[0]["latitud"])
+    ref_lon = float(gps[0]["longitud"])
+    metros_lat = 111320
+    metros_lon = 111320 * cos(ref_lat * pi / 180)
+    locales = []
+    for p in gps:
+        lat = float(p["latitud"])
+        lon = float(p["longitud"])
+        locales.append({
+            "x": (lat - ref_lat) * metros_lat,
+            "y": (lon - ref_lon) * metros_lon,
+        })
+
+    indices = simplificar_indices(locales, 0, len(locales) - 1, tolerancia)
+    if len(indices) < 2:
+        return gps
+
+    return [gps[i] for i in indices]
+
+
 def calcular_metricas_desde_puntos(gps):
+    puntos_originales = len(gps)
+    gps = suavizar_puntos_caminata(gps)
     distancia = 0
     hsr = 0
     sprints = 0
@@ -179,7 +247,8 @@ def calcular_metricas_desde_puntos(gps):
         "sprints": sprints,
         "deceleraciones": deceleraciones,
         "distancia_por_minuto": round(dist_min, 2),
-        "puntos_gps": len(gps),
+        "puntos_gps": puntos_originales,
+        "puntos_metricas": len(gps),
         "segmentos_validos": segmentos_validos,
         "segmentos_descartados": segmentos_descartados,
         "perfil_calculo": obtener_perfil_calculo()
