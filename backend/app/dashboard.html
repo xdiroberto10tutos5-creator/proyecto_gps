@@ -1561,6 +1561,51 @@
       return total;
     }
 
+    function filtrarSaltosVisuales(locales) {
+      if (locales.length < 4) return locales;
+      const distanciaTotal = distanciaLocalTotal(locales);
+      if (distanciaTotal > 120) return locales;
+
+      const filtrados = [locales[0]];
+      for (let i = 1; i < locales.length; i++) {
+        const anterior = filtrados[filtrados.length - 1];
+        const distancia = distanciaPlano(anterior, locales[i]);
+        if (distancia <= 18 || filtrados.length < 2) {
+          filtrados.push(locales[i]);
+          continue;
+        }
+
+        const previo = filtrados[filtrados.length - 2];
+        const vuelveRapido = distanciaPlano(previo, locales[i]) <= 12;
+        if (!vuelveRapido) {
+          filtrados.push(locales[i]);
+        }
+      }
+      return filtrados.length >= 2 ? filtrados : locales;
+    }
+
+    function centrarRecorridoCorto(locales, inicio) {
+      const distanciaTotal = distanciaLocalTotal(locales);
+      if (distanciaTotal > 120) return null;
+
+      const suavizados = filtrarSaltosVisuales(locales);
+      const maxDesplazamiento = Math.max(
+        ...suavizados.map(p => Math.hypot(p.x, p.y))
+      );
+      if (!maxDesplazamiento) return null;
+
+      const escala = Math.min(1, (CANCHA.largo / 2 - 4) / maxDesplazamiento);
+      return suavizados.map(p => {
+        const rotado = rotarPunto(p.x * escala, p.y * escala);
+        return [
+          Math.max(0.5, Math.min(CANCHA.ancho - 0.5, rotado.y + inicio.y)),
+          Math.max(0.5, Math.min(CANCHA.largo - 0.5, rotado.x + inicio.x)),
+          Math.max(0.18, Math.min(1, p.velocidad_ms / 2.5)),
+          p.velocidad_ms
+        ];
+      });
+    }
+
     function limitesLocales(locales) {
       return locales.reduce((acc, p) => ({
         minX: Math.min(acc.minX, p.x),
@@ -1667,6 +1712,9 @@
       if (esVueltaDeCancha(rotados)) {
         return ajustarVueltaACancha(rotados);
       }
+
+      const recorridoCorto = centrarRecorridoCorto(locales, inicio);
+      if (recorridoCorto) return recorridoCorto;
 
       const escala = factorEscalaVisual(locales);
 
