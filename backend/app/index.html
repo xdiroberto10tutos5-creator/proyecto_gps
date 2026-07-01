@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GPS Jugador</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     :root {
       --bg: #0b1114;
@@ -209,6 +210,41 @@
 
     .dot.good { background: var(--accent); }
     .dot.bad { background: var(--danger); }
+
+    .map-card {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .map-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .map-head strong {
+      font-size: 0.95rem;
+    }
+
+    .map-head span {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    #liveMap {
+      width: 100%;
+      height: 330px;
+      background: #0d1518;
+    }
+
+    .leaflet-control-layers,
+    .leaflet-control-zoom a {
+      color: #102025;
+    }
   </style>
 </head>
 <body>
@@ -240,6 +276,14 @@
       </div>
     </section>
 
+    <section class="map-card">
+      <div class="map-head">
+        <strong>Mapa real en vivo</strong>
+        <span>Satélite / calles / rural</span>
+      </div>
+      <div id="liveMap"></div>
+    </section>
+
     <section>
       <div class="grid">
         <div class="metric"><span>Puntos aceptados</span><strong id="puntos">0</strong></div>
@@ -253,6 +297,7 @@
     </section>
   </main>
 
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     const STORAGE_KEY = "gps_futbol_buffer";
     const params = new URLSearchParams(window.location.search);
@@ -282,8 +327,13 @@
     let candidatosMovimiento = [];
     let velocidadAnteriorAceptada = 0;
     let contadores = crearContadores();
+    let liveMap = null;
+    let liveRouteLayer = null;
+    let liveCurrentLayer = null;
+    let liveMarkerLayer = null;
 
     precargarContexto();
+    initLiveMap();
     pintarEstado();
 
     function precargarContexto() {
@@ -333,6 +383,114 @@
     function pintarEstado() {
       document.getElementById("puntos").textContent = puntos.length;
       document.getElementById("ultimoEnvio").textContent = localStorage.getItem("gps_futbol_ultimo_envio") || "--";
+      pintarRutaEnVivo();
+    }
+
+    function initLiveMap() {
+      if (liveMap || typeof L === "undefined") return;
+      liveMap = L.map("liveMap", {
+        zoomControl: true,
+        attributionControl: true
+      });
+      const calles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
+      });
+      const satelite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: "Tiles &copy; Esri"
+      });
+      const rural = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+        maxZoom: 17,
+        attribution: "&copy; OpenTopoMap"
+      });
+      satelite.addTo(liveMap);
+      L.control.layers({
+        "Satélite": satelite,
+        "Calles": calles,
+        "Topográfico / rural": rural
+      }, null, { collapsed: true }).addTo(liveMap);
+      liveMap.setView([9.035833, -79.469444], 17);
+      setTimeout(() => liveMap.invalidateSize(), 120);
+      pintarRutaEnVivo();
+    }
+
+    function colorVelocidad(velocidadMs) {
+      if (velocidadMs >= 4.5) return "#f14b18";
+      if (velocidadMs >= 2.2) return "#ffb312";
+      if (velocidadMs >= 0.3) return "#38d976";
+      return "#4fb3ff";
+    }
+
+    function actualizarUbicacionEnMapa(punto) {
+      if (!liveMap || !punto) return;
+      const latlng = [punto.latitud, punto.longitud];
+      if (liveCurrentLayer) liveMap.removeLayer(liveCurrentLayer);
+      liveCurrentLayer = L.layerGroup([
+        L.circle(latlng, {
+          radius: Number(punto.precision_gps || 0),
+          color: "#4fb3ff",
+          weight: 1,
+          fillColor: "#4fb3ff",
+          fillOpacity: 0.14
+        }),
+        L.circleMarker(latlng, {
+          radius: 7,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: "#4fb3ff",
+          fillOpacity: 1
+        }).bindTooltip("Ubicación actual")
+      ]).addTo(liveMap);
+      if (puntos.length < 2) {
+        liveMap.setView(latlng, 19);
+      }
+    }
+
+    function pintarRutaEnVivo() {
+      if (!liveMap) return;
+      if (liveRouteLayer) liveMap.removeLayer(liveRouteLayer);
+      if (liveMarkerLayer) liveMap.removeLayer(liveMarkerLayer);
+      liveRouteLayer = null;
+      liveMarkerLayer = null;
+      if (!puntos.length) return;
+
+      const capasRuta = [];
+      for (let i = 1; i < puntos.length; i++) {
+        const anterior = puntos[i - 1];
+        const actual = puntos[i];
+        capasRuta.push(L.polyline(
+          [[anterior.latitud, anterior.longitud], [actual.latitud, actual.longitud]],
+          {
+            color: colorVelocidad(Math.max(anterior.velocidad || 0, actual.velocidad || 0)),
+            weight: 6,
+            opacity: 0.9,
+            lineCap: "round",
+            lineJoin: "round"
+          }
+        ));
+      }
+      liveRouteLayer = L.layerGroup(capasRuta).addTo(liveMap);
+      const inicio = puntos[0];
+      const fin = puntos[puntos.length - 1];
+      liveMarkerLayer = L.layerGroup([
+        L.circleMarker([inicio.latitud, inicio.longitud], {
+          radius: 6,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: "#38d976",
+          fillOpacity: 1
+        }).bindTooltip("Inicio"),
+        L.circleMarker([fin.latitud, fin.longitud], {
+          radius: 6,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: "#ff5d5d",
+          fillOpacity: 1
+        }).bindTooltip("Último punto")
+      ]).addTo(liveMap);
+      const bounds = L.latLngBounds(puntos.map(p => [p.latitud, p.longitud]));
+      liveMap.fitBounds(bounds.pad(0.22), { maxZoom: 19 });
     }
 
     function desbloquearInicio() {
@@ -593,6 +751,7 @@
       contadores.recibidos += 1;
       actualizarLecturaGPS(base);
       actualizarCalidad(base);
+      actualizarUbicacionEnMapa(base);
 
       if (Date.now() - inicioCalibracion < CALIBRACION_MS) {
         if (base.precision_gps <= PRECISION_MAXIMA) {
