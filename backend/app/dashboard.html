@@ -619,9 +619,9 @@
             <div>
               <label>Inicio de la captura</label>
               <select id="capturaInicio" onchange="guardarConfiguracionMapaDesdeCaptura()">
-                <option value="centro">Centro de la cancha</option>
+                <option value="centro" selected>Centro de la cancha</option>
                 <option value="media_borde_superior">Línea media - borde superior</option>
-                <option value="media_borde_inferior" selected>Línea media - borde inferior</option>
+                <option value="media_borde_inferior">Línea media - borde inferior</option>
               </select>
             </div>
             <div>
@@ -651,9 +651,9 @@
             <div>
               <label>Punto inicial en cancha</label>
               <select id="mapInicio" onchange="actualizarMapaDesdeControles()">
-                <option value="centro">Centro de la cancha</option>
+                <option value="centro" selected>Centro de la cancha</option>
                 <option value="media_borde_superior">Línea media - borde superior</option>
-                <option value="media_borde_inferior" selected>Línea media - borde inferior</option>
+                <option value="media_borde_inferior">Línea media - borde inferior</option>
               </select>
             </div>
             <div>
@@ -1010,7 +1010,7 @@
 
     function claveConfiguracionMapa() {
       if (!state.sesion || !state.jugador) return null;
-      return `gps_futbol_mapa_${state.sesion.id}_${state.jugador.id}`;
+      return `gps_futbol_mapa_v2_${state.sesion.id}_${state.jugador.id}`;
     }
 
     function obtenerConfiguracionMapa() {
@@ -1505,7 +1505,7 @@
     }
 
     function obtenerPuntoInicialMapa() {
-      const inicio = document.getElementById("mapInicio")?.value || "media_borde_inferior";
+      const inicio = document.getElementById("mapInicio")?.value || "centro";
       const mitadLargo = CANCHA.largo / 2;
       const mitadAncho = CANCHA.ancho / 2;
       const puntos = {
@@ -1513,7 +1513,7 @@
         media_borde_superior: { x: mitadLargo, y: 0.5 },
         media_borde_inferior: { x: mitadLargo, y: CANCHA.ancho - 0.5 }
       };
-      return puntos[inicio] || puntos.media_borde_inferior;
+      return puntos[inicio] || puntos.centro;
     }
 
     function rotarPunto(x, y) {
@@ -1562,7 +1562,7 @@
         return {
           latitud,
           longitud,
-          velocidad: Math.max(0.3, Math.min(1, Number(p.velocidad || 0) / 8))
+          velocidad_ms: Math.max(0, Number(p.velocidad || 0))
         };
       }).filter(Boolean);
 
@@ -1574,7 +1574,7 @@
       const locales = puntosGps.map(p => ({
         x: (p.latitud - refLat) * metrosLat,
         y: (p.longitud - refLon) * metrosLon,
-        velocidad: p.velocidad
+        velocidad_ms: p.velocidad_ms
       }));
       const inicio = obtenerPuntoInicialMapa();
       const escala = factorEscalaVisual(locales);
@@ -1584,7 +1584,8 @@
         return [
           Math.max(0.5, Math.min(CANCHA.ancho - 0.5, rotado.y + inicio.y)),
           Math.max(0.5, Math.min(CANCHA.largo - 0.5, rotado.x + inicio.x)),
-          p.velocidad
+          Math.max(0.18, Math.min(1, p.velocidad_ms / 2.5)),
+          p.velocidad_ms
         ];
       });
     }
@@ -1597,6 +1598,10 @@
         total += distanciaPlano(anterior, actual);
       }
       return total;
+    }
+
+    function segmentoRapido(puntoA, puntoB) {
+      return Number(puntoA[3] || 0) >= 0.3 || Number(puntoB[3] || 0) >= 0.3;
     }
 
     function pintarMetricas(m = {}) {
@@ -1753,15 +1758,37 @@
       map.invalidateSize();
       const distanciaVisual = distanciaRutaMapa(puntos);
       if (puntos.length > 1 && distanciaVisual >= 8) {
-        routeLayer = L.polyline(
+        const capasRuta = [];
+        capasRuta.push(L.polyline(
           puntos.map(([y, x]) => [y, x]),
           {
             pane: "routePane",
             color: "#ffffff",
-            weight: 4,
-            opacity: 0.95
+            weight: 3,
+            opacity: 0.7
           }
-        ).addTo(map);
+        ));
+        for (let i = 1; i < puntos.length; i++) {
+          if (!segmentoRapido(puntos[i - 1], puntos[i])) continue;
+          capasRuta.push(L.polyline(
+            [[puntos[i - 1][0], puntos[i - 1][1]], [puntos[i][0], puntos[i][1]]],
+            {
+              pane: "routePane",
+              color: "#ffb312",
+              weight: 6,
+              opacity: 0.95
+            }
+          ));
+          capasRuta.push(L.circleMarker([puntos[i][0], puntos[i][1]], {
+            pane: "routePane",
+            radius: 5,
+            color: "#ffffff",
+            weight: 2,
+            fillColor: "#ff7a18",
+            fillOpacity: 0.95
+          }));
+        }
+        routeLayer = L.layerGroup(capasRuta).addTo(map);
       } else {
         routeLayer = L.circleMarker([puntos[0][0], puntos[0][1]], {
           pane: "routePane",

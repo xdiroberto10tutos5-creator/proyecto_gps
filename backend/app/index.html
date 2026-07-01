@@ -235,9 +235,9 @@
 
       <label for="inicio_cancha">Lugar donde empiezas</label>
       <select id="inicio_cancha" onchange="guardarConfiguracionMapa()">
-        <option value="centro">Centro de la cancha</option>
+        <option value="centro" selected>Centro de la cancha</option>
         <option value="media_borde_superior">Línea media - borde superior</option>
-        <option value="media_borde_inferior" selected>Línea media - borde inferior</option>
+        <option value="media_borde_inferior">Línea media - borde inferior</option>
       </select>
 
       <label for="rotacion_mapa">Orientación esperada en el mapa</label>
@@ -323,7 +323,7 @@
       const sesionId = sesionInput.value.trim();
       const jugadorId = jugadorInput.value.trim();
       if (!sesionId || !jugadorId) return null;
-      return `gps_futbol_mapa_${sesionId}_${jugadorId}`;
+      return `gps_futbol_mapa_v2_${sesionId}_${jugadorId}`;
     }
 
     function cargarConfiguracionMapa() {
