@@ -853,13 +853,18 @@
       }
 
       try {
-        let response = await enviarLote();
-        if (response.status === 401 && await renovarSesionAuth()) {
-          response = await enviarLote();
+        const puntosEnvio = prepararPuntosEnvio();
+        if (puntosEnvio.length < 2) {
+          throw new Error("La captura local no tiene suficientes puntos GPS válidos para enviar.");
         }
 
-        const json = await response.json();
-        if (!response.ok) throw new Error(JSON.stringify(json));
+        let response = await enviarLote(puntosEnvio);
+        if (response.status === 401 && await renovarSesionAuth()) {
+          response = await enviarLote(puntosEnvio);
+        }
+
+        const json = await leerRespuesta(response);
+        if (!response.ok) throw new Error(describirErrorEnvio(response, json));
 
         const hora = new Date().toLocaleTimeString();
         localStorage.setItem("gps_futbol_ultimo_envio", hora);
@@ -880,14 +885,60 @@
       }
     }
 
-    function enviarLote() {
+    function prepararPuntosEnvio() {
+      return puntos
+        .map(punto => ({
+          sesion_id: sesionInput.value.trim(),
+          jugador_id: jugadorInput.value.trim(),
+          latitud: Number(punto.latitud),
+          longitud: Number(punto.longitud),
+          velocidad: Math.max(0, Number(punto.velocidad || 0)),
+          precision_gps: Math.max(0, Number(punto.precision_gps || 0)),
+          timestamp: punto.timestamp || new Date().toISOString()
+        }))
+        .filter(punto =>
+          Number.isFinite(punto.latitud)
+          && Number.isFinite(punto.longitud)
+          && punto.latitud >= -90
+          && punto.latitud <= 90
+          && punto.longitud >= -180
+          && punto.longitud <= 180
+          && Number.isFinite(punto.velocidad)
+          && Number.isFinite(punto.precision_gps)
+        );
+    }
+
+    async function leerRespuesta(response) {
+      const texto = await response.text();
+      if (!texto) return {};
+      try {
+        return JSON.parse(texto);
+      } catch {
+        return { detail: texto };
+      }
+    }
+
+    function describirErrorEnvio(response, data) {
+      const detail = data && data.detail ? data.detail : data;
+      const detalle = typeof detail === "string" ? detail : JSON.stringify(detail);
+      if (response.status === 401) {
+        return "Sesión vencida. Inicia sesión nuevamente y toca Detener GPS y Enviar otra vez.";
+      }
+      if (response.status === 422) {
+        return `Datos GPS inválidos para el servidor: ${detalle}`;
+      }
+      return `Error ${response.status}: ${detalle}`;
+    }
+
+    function enviarLote(puntosEnvio) {
       return fetch("/gps/lote", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sesion_id: sesionInput.value.trim(),
             jugador_id: jugadorInput.value.trim(),
-            puntos
+            puntos: puntosEnvio
           })
         });
     }
