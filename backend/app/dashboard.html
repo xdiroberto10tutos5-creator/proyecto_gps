@@ -650,23 +650,6 @@
           <div class="grid cols-2">
             <div><label>Sesión activa</label><select id="capturaSesion" onchange="seleccionarSesion(this.value)"></select></div>
             <div><label>Jugador seleccionado</label><select id="capturaJugador" onchange="seleccionarJugador(this.value)"></select></div>
-            <div>
-              <label>Inicio de la captura</label>
-              <select id="capturaInicio" onchange="guardarConfiguracionMapaDesdeCaptura()">
-                <option value="centro" selected>Centro de la cancha</option>
-                <option value="media_borde_superior">Línea media - borde superior</option>
-                <option value="media_borde_inferior">Línea media - borde inferior</option>
-              </select>
-            </div>
-            <div>
-              <label>Orientación esperada</label>
-              <select id="capturaRotacion" onchange="guardarConfiguracionMapaDesdeCaptura()">
-                <option value="0" selected>Normal</option>
-                <option value="90">Rotar 90°</option>
-                <option value="180">Rotar 180°</option>
-                <option value="270">Rotar 270°</option>
-              </select>
-            </div>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
             <a id="capturaLink" class="button-link" href="/app" target="_blank">Abrir /app</a>
@@ -682,23 +665,6 @@
           <div class="grid cols-2">
             <div><label>Sesión</label><select id="dashSesion" onchange="seleccionarSesion(this.value)"></select></div>
             <div><label>Jugador</label><select id="dashJugador" onchange="seleccionarJugador(this.value)"></select></div>
-            <div>
-              <label>Punto inicial en cancha</label>
-              <select id="mapInicio" onchange="actualizarMapaDesdeControles()">
-                <option value="centro" selected>Centro de la cancha</option>
-                <option value="media_borde_superior">Línea media - borde superior</option>
-                <option value="media_borde_inferior">Línea media - borde inferior</option>
-              </select>
-            </div>
-            <div>
-              <label>Orientación del recorrido</label>
-              <select id="mapRotacion" onchange="actualizarMapaDesdeControles()">
-                <option value="0" selected>Normal</option>
-                <option value="90">Rotar 90°</option>
-                <option value="180">Rotar 180°</option>
-                <option value="270">Rotar 270°</option>
-              </select>
-            </div>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
             <button onclick="cargarDashboard()">Cargar dashboard</button>
@@ -724,6 +690,7 @@
                 <div class="map-tabs">
                   <button id="mapTabReal" class="map-tab active" onclick="cambiarVistaMapa('real')">Mapa real</button>
                   <button id="mapTabCancha" class="map-tab" onclick="cambiarVistaMapa('cancha')">Cancha</button>
+                  <button class="map-tab" onclick="centrarEnUbicacionActual()">Mi ubicación</button>
                   <span id="puntosLabel">0 puntos</span>
                 </div>
               </div>
@@ -813,6 +780,7 @@
     let heatLayer = null;
     let realRouteLayer = null;
     let realMarkerLayer = null;
+    let currentLocationLayer = null;
     let pitchLayers = [];
     let charts = {};
     let reporteGenerado = false;
@@ -1042,63 +1010,10 @@
         params.set("jugador_id", state.jugador.id);
         params.set("jugador_nombre", state.jugador.nombre || "");
       }
-      const configMapa = obtenerConfiguracionMapa();
-      if (configMapa) {
-        params.set("inicio_cancha", configMapa.inicio);
-        params.set("rotacion_mapa", configMapa.rotacion);
-      }
       const href = `/app${params.toString() ? "?" + params.toString() : ""}`;
       document.getElementById("mobileLink").href = href;
       document.getElementById("capturaLink").href = href;
       actualizarSelects();
-      aplicarConfiguracionMapaGuardada();
-    }
-
-    function claveConfiguracionMapa() {
-      if (!state.sesion || !state.jugador) return null;
-      return `gps_futbol_mapa_v2_${state.sesion.id}_${state.jugador.id}`;
-    }
-
-    function obtenerConfiguracionMapa() {
-      const key = claveConfiguracionMapa();
-      if (!key) return null;
-      try {
-        return JSON.parse(localStorage.getItem(key) || "null");
-      } catch {
-        return null;
-      }
-    }
-
-    function guardarConfiguracionMapa(inicio, rotacion) {
-      const key = claveConfiguracionMapa();
-      if (!key) return;
-      localStorage.setItem(key, JSON.stringify({ inicio, rotacion }));
-    }
-
-    function aplicarValorSelect(id, value) {
-      const el = document.getElementById(id);
-      if (el && value !== undefined && value !== null) el.value = String(value);
-    }
-
-    function aplicarConfiguracionMapaGuardada() {
-      const config = obtenerConfiguracionMapa();
-      if (!config) return;
-      aplicarValorSelect("capturaInicio", config.inicio);
-      aplicarValorSelect("capturaRotacion", config.rotacion);
-      aplicarValorSelect("mapInicio", config.inicio);
-      aplicarValorSelect("mapRotacion", config.rotacion);
-    }
-
-    function guardarConfiguracionMapaDesdeCaptura() {
-      const inicio = document.getElementById("capturaInicio").value;
-      const rotacion = document.getElementById("capturaRotacion").value;
-      if (!sincronizarSeleccion("capturaSesion", "capturaJugador")) return;
-      guardarConfiguracionMapa(inicio, rotacion);
-      aplicarValorSelect("capturaInicio", inicio);
-      aplicarValorSelect("capturaRotacion", rotacion);
-      aplicarValorSelect("mapInicio", inicio);
-      aplicarValorSelect("mapRotacion", rotacion);
-      actualizarContexto();
     }
 
     async function iniciarSesionCoach() {
@@ -1410,10 +1325,24 @@
         zoomControl: true,
         attributionControl: true
       });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      const calles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap"
-      }).addTo(realMap);
+      });
+      const satelite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: "Tiles &copy; Esri"
+      });
+      const topografico = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+        maxZoom: 17,
+        attribution: "&copy; OpenTopoMap"
+      });
+      satelite.addTo(realMap);
+      L.control.layers({
+        "Satélite": satelite,
+        "Calles": calles,
+        "Topográfico / rural": topografico
+      }, null, { collapsed: false }).addTo(realMap);
       realMap.setView([CANCHA.centroLat, CANCHA.centroLon], 17);
     }
 
@@ -1438,6 +1367,49 @@
         if (vista === "real" && realMap) realMap.invalidateSize();
         if (vista === "cancha" && map) map.invalidateSize();
       }, 80);
+    }
+
+    function centrarEnUbicacionActual() {
+      initRealMap();
+      cambiarVistaMapa("real");
+      if (!navigator.geolocation) {
+        document.getElementById("dashMsg").textContent = "Este navegador no soporta ubicación actual.";
+        return;
+      }
+      document.getElementById("dashMsg").textContent = "Solicitando ubicación precisa...";
+      navigator.geolocation.getCurrentPosition(position => {
+        const coords = position.coords;
+        const latlng = [coords.latitude, coords.longitude];
+        if (currentLocationLayer) {
+          realMap.removeLayer(currentLocationLayer);
+        }
+        currentLocationLayer = L.layerGroup([
+          L.circle(latlng, {
+            radius: Number(coords.accuracy || 0),
+            color: "#1769aa",
+            weight: 1,
+            fillColor: "#4fb3ff",
+            fillOpacity: 0.12
+          }),
+          L.circleMarker(latlng, {
+            radius: 7,
+            color: "#ffffff",
+            weight: 2,
+            fillColor: "#1769aa",
+            fillOpacity: 1
+          }).bindTooltip("Tu ubicación actual")
+        ]).addTo(realMap);
+        realMap.setView(latlng, 19);
+        document.getElementById("dashMsg").textContent =
+          `Ubicación actual centrada. Precisión estimada: ${fmt(coords.accuracy || 0)} m.`;
+      }, () => {
+        document.getElementById("dashMsg").textContent =
+          "No se pudo obtener tu ubicación. Permite ubicación precisa en el navegador.";
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 12000
+      });
     }
 
     function agregarCapaCancha(layer) {
@@ -1581,23 +1553,7 @@
     }
 
     function obtenerPuntoInicialMapa() {
-      const inicio = document.getElementById("mapInicio")?.value || "centro";
-      const mitadLargo = CANCHA.largo / 2;
-      const mitadAncho = CANCHA.ancho / 2;
-      const puntos = {
-        centro: { x: mitadLargo, y: mitadAncho },
-        media_borde_superior: { x: mitadLargo, y: 0.5 },
-        media_borde_inferior: { x: mitadLargo, y: CANCHA.ancho - 0.5 }
-      };
-      return puntos[inicio] || puntos.centro;
-    }
-
-    function rotarPunto(x, y) {
-      const rotacion = Number(document.getElementById("mapRotacion")?.value || 0);
-      if (rotacion === 90) return { x: -y, y: x };
-      if (rotacion === 180) return { x: -x, y: -y };
-      if (rotacion === 270) return { x: y, y: -x };
-      return { x, y };
+      return { x: CANCHA.largo / 2, y: CANCHA.ancho / 2 };
     }
 
     function distanciaPlano(a, b) {
@@ -1672,10 +1628,9 @@
 
       const escala = Math.min(1, (CANCHA.largo / 2 - 4) / maxDesplazamiento);
       return suavizados.map(p => {
-        const rotado = rotarPunto(p.x * escala, p.y * escala);
         return [
-          Math.max(0.5, Math.min(CANCHA.ancho - 0.5, rotado.y + inicio.y)),
-          Math.max(0.5, Math.min(CANCHA.largo - 0.5, rotado.x + inicio.x)),
+          Math.max(0.5, Math.min(CANCHA.ancho - 0.5, p.y * escala + inicio.y)),
+          Math.max(0.5, Math.min(CANCHA.largo - 0.5, p.x * escala + inicio.x)),
           Math.max(0.18, Math.min(1, p.velocidad_ms / 2.5)),
           p.velocidad_ms
         ];
@@ -1777,10 +1732,9 @@
       }));
       const inicio = obtenerPuntoInicialMapa();
       const rotados = locales.map(p => {
-        const rotado = rotarPunto(p.x, p.y);
         return {
-          x: rotado.x,
-          y: rotado.y,
+          x: p.x,
+          y: p.y,
           velocidad_ms: p.velocidad_ms
         };
       });
@@ -1795,10 +1749,9 @@
       const escala = factorEscalaVisual(locales);
 
       return locales.map(p => {
-        const rotado = rotarPunto(p.x * escala, p.y * escala);
         return [
-          Math.max(0.5, Math.min(CANCHA.ancho - 0.5, rotado.y + inicio.y)),
-          Math.max(0.5, Math.min(CANCHA.largo - 0.5, rotado.x + inicio.x)),
+          Math.max(0.5, Math.min(CANCHA.ancho - 0.5, p.y * escala + inicio.y)),
+          Math.max(0.5, Math.min(CANCHA.largo - 0.5, p.x * escala + inicio.x)),
           Math.max(0.18, Math.min(1, p.velocidad_ms / 2.5)),
           p.velocidad_ms
         ];
@@ -1979,14 +1932,6 @@
     }
 
     function actualizarMapaDesdeControles() {
-      if (state.sesion && state.jugador) {
-        guardarConfiguracionMapa(
-          document.getElementById("mapInicio").value,
-          document.getElementById("mapRotacion").value
-        );
-        aplicarValorSelect("capturaInicio", document.getElementById("mapInicio").value);
-        aplicarValorSelect("capturaRotacion", document.getElementById("mapRotacion").value);
-      }
       if (!ultimoGpsDashboard.length) return;
       pintarMapa(ultimoGpsDashboard);
       pintarMapaReal(ultimoGpsDashboard);
