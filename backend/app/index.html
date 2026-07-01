@@ -257,7 +257,7 @@
 
     <section>
       <div class="grid">
-        <div class="metric"><span>Puntos guardados</span><strong id="puntos">0</strong></div>
+        <div class="metric"><span>Puntos aceptados</span><strong id="puntos">0</strong></div>
         <div class="metric"><span>Precisión actual</span><strong id="precision">-- m</strong></div>
         <div class="metric"><span>Latitud actual</span><strong id="latitud">--</strong></div>
         <div class="metric"><span>Longitud actual</span><strong id="longitud">--</strong></div>
@@ -282,10 +282,23 @@
     const qualityDot = document.getElementById("qualityDot");
     const qualityText = document.getElementById("qualityText");
 
+    const CALIBRACION_MS = 7000;
+    const PRECISION_IDEAL = 20;
+    const PRECISION_MAXIMA = 30;
+    const VELOCIDAD_CAMINATA_MS = 1.2 / 3.6;
+    const VELOCIDAD_MAXIMA_REALISTA_MS = 35 / 3.6;
+    const ACELERACION_MAXIMA_REALISTA = 5;
+    const CANDIDATOS_MOVIMIENTO_REQUERIDOS = 2;
+
     let watchId = null;
     let puntos = cargarBuffer();
     let ultimoPunto = puntos[puntos.length - 1] || null;
-    let puntosIgnorados = 0;
+    let baseCalibracion = null;
+    let inicioCalibracion = 0;
+    let puntosCalibracion = [];
+    let candidatosMovimiento = [];
+    let velocidadAnteriorAceptada = 0;
+    let contadores = crearContadores();
 
     precargarContexto();
     pintarEstado();
@@ -359,6 +372,20 @@
       logEl.textContent = texto;
     }
 
+    function crearContadores() {
+      return {
+        recibidos: 0,
+        aceptados: puntos.length,
+        bajaPrecision: 0,
+        quieto: 0,
+        saltos: 0
+      };
+    }
+
+    function resumenContadores() {
+      return `Recibidos: ${contadores.recibidos} | Aceptados: ${puntos.length} | Baja precisión: ${contadores.bajaPrecision} | Quieto: ${contadores.quieto} | Saltos: ${contadores.saltos}`;
+    }
+
     function pintarEstado() {
       document.getElementById("puntos").textContent = puntos.length;
       document.getElementById("ultimoEnvio").textContent = localStorage.getItem("gps_futbol_ultimo_envio") || "--";
@@ -399,13 +426,53 @@
       return distanciaMetros(a.latitud, a.longitud, b.latitud, b.longitud);
     }
 
-    function umbralRuido(puntoA, puntoB) {
+    function calcularVelocidadPunto(origen, destino) {
+      if (!origen || !destino) return Number(destino && destino.velocidad || 0);
+      const segundos = (new Date(destino.timestamp) - new Date(origen.timestamp)) / 1000;
+      if (!segundos || segundos <= 0) return 0;
+      return distanciaEntrePuntos(origen, destino) / segundos;
+    }
+
+    function velocidadNavegadorValida(coords) {
+      const speed = Number(coords.speed);
+      return Number.isFinite(speed) && speed > 0 && speed <= VELOCIDAD_MAXIMA_REALISTA_MS ? speed : 0;
+    }
+
+    function velocidadConfiable(coords, origen, destino) {
+      const calculada = calcularVelocidadPunto(origen, destino);
+      const navegador = velocidadNavegadorValida(coords);
+      if (!navegador) return calculada;
+      if (!calculada) return navegador;
+      return Math.abs(navegador - calculada) > 2.5 ? calculada : Math.min(navegador, calculada);
+    }
+
+    function umbralMovimiento(puntoA, puntoB) {
       const precision = Math.max(
         Number(puntoA && puntoA.precision_gps || 0),
         Number(puntoB && puntoB.precision_gps || 0),
-        5
+        4
       );
-      return Math.max(2, Math.min(6, precision * 0.35));
+      return Math.max(3, precision * 0.75);
+    }
+
+    function puntoMediano(puntosGps) {
+      const mejores = [...puntosGps]
+        .filter(p => p.precision_gps && p.precision_gps <= PRECISION_MAXIMA)
+        .sort((a, b) => a.precision_gps - b.precision_gps)
+        .slice(0, 7);
+      const base = mejores.length ? mejores : [...puntosGps].sort((a, b) => a.precision_gps - b.precision_gps).slice(0, 5);
+      if (!base.length) return null;
+      const latitudes = base.map(p => p.latitud).sort((a, b) => a - b);
+      const longitudes = base.map(p => p.longitud).sort((a, b) => a - b);
+      const precisiones = base.map(p => p.precision_gps).sort((a, b) => a - b);
+      const mid = Math.floor(base.length / 2);
+      return {
+        latitud: latitudes[mid],
+        longitud: longitudes[mid],
+        precision_gps: precisiones[mid] || PRECISION_MAXIMA,
+        velocidad: 0,
+        timestamp: base[base.length - 1].timestamp
+      };
     }
 
     function actualizarLecturaGPS(punto) {
@@ -415,11 +482,81 @@
       document.getElementById("velocidad").textContent = `${(punto.velocidad * 3.6).toFixed(1)} km/h`;
     }
 
-    function esRuidoQuieto(punto) {
-      if (!ultimoPunto) return false;
-      const distancia = distanciaEntrePuntos(ultimoPunto, punto);
-      const velocidadKmh = Number(punto.velocidad || 0) * 3.6;
-      return distancia < umbralRuido(ultimoPunto, punto) && velocidadKmh < 1.2;
+    function actualizarCalidad(punto) {
+      qualityDot.className = punto.precision_gps <= 10 ? "dot good" : punto.precision_gps <= PRECISION_IDEAL ? "dot" : "dot bad";
+      qualityText.textContent = punto.precision_gps <= 10 ? "Señal GPS buena" : punto.precision_gps <= PRECISION_IDEAL ? "Señal aceptable" : "Señal GPS débil";
+    }
+
+    function aceptarPunto(punto) {
+      puntos.push(punto);
+      ultimoPunto = punto;
+      velocidadAnteriorAceptada = punto.velocidad || 0;
+      candidatosMovimiento = [];
+      contadores.aceptados = puntos.length;
+      guardarBuffer();
+      pintarEstado();
+    }
+
+    function descartarPunto(motivo, mensaje) {
+      contadores[motivo] += 1;
+      setLog(`${mensaje}. ${resumenContadores()}`);
+    }
+
+    function evaluarMovimiento(punto, coords) {
+      const referencia = ultimoPunto || baseCalibracion;
+      if (!referencia) {
+        descartarPunto("quieto", "GPS estable. Esperando movimiento real");
+        return;
+      }
+
+      punto.velocidad = velocidadConfiable(coords, referencia, punto);
+      const distancia = distanciaEntrePuntos(referencia, punto);
+      const umbral = umbralMovimiento(referencia, punto);
+      const segundos = Math.max(0.1, (new Date(punto.timestamp) - new Date(referencia.timestamp)) / 1000);
+      const aceleracion = (punto.velocidad - velocidadAnteriorAceptada) / segundos;
+
+      if (punto.velocidad > VELOCIDAD_MAXIMA_REALISTA_MS || Math.abs(aceleracion) > ACELERACION_MAXIMA_REALISTA) {
+        candidatosMovimiento = [];
+        descartarPunto("saltos", "Salto GPS imposible ignorado");
+        return;
+      }
+
+      if (distancia < umbral && punto.velocidad < VELOCIDAD_CAMINATA_MS) {
+        candidatosMovimiento = [];
+        descartarPunto("quieto", "Sin movimiento real detectado");
+        return;
+      }
+
+      candidatosMovimiento.push({ punto, distancia });
+      if (candidatosMovimiento.length > CANDIDATOS_MOVIMIENTO_REQUERIDOS) {
+        candidatosMovimiento.shift();
+      }
+
+      const distanciaSostenida = candidatosMovimiento.reduce((total, item) => total + item.distancia, 0);
+      const velocidadSostenida = candidatosMovimiento.some(item => item.punto.velocidad >= VELOCIDAD_CAMINATA_MS);
+      const movimientoConfirmado = candidatosMovimiento.length >= CANDIDATOS_MOVIMIENTO_REQUERIDOS
+        && (velocidadSostenida || distanciaSostenida >= umbral);
+
+      if (!movimientoConfirmado) {
+        descartarPunto("quieto", "Posible movimiento, confirmando señal");
+        return;
+      }
+
+      if (!ultimoPunto && baseCalibracion) {
+        aceptarPunto({
+          ...baseCalibracion,
+          timestamp: candidatosMovimiento[0].punto.timestamp,
+          velocidad: 0
+        });
+      }
+
+      candidatosMovimiento.forEach(item => {
+        item.punto.velocidad = velocidadConfiable(coords, ultimoPunto, item.punto);
+        aceptarPunto(item.punto);
+      });
+
+      statusEl.textContent = "Capturando";
+      setLog(`Capturando. ${resumenContadores()}`);
     }
 
     async function iniciarGPS() {
@@ -479,7 +616,12 @@
 
       puntos = [];
       ultimoPunto = null;
-      puntosIgnorados = 0;
+      baseCalibracion = null;
+      inicioCalibracion = Date.now();
+      puntosCalibracion = [];
+      candidatosMovimiento = [];
+      velocidadAnteriorAceptada = 0;
+      contadores = crearContadores();
       guardarBuffer();
       pintarEstado();
 
@@ -489,11 +631,11 @@
         timeout: 12000
       });
 
-      statusEl.textContent = "Buscando GPS";
+      statusEl.textContent = "Calibrando";
       statusEl.classList.add("active");
       stopBtn.disabled = false;
-      qualityText.textContent = "Buscando ubicación";
-      setLog("Solicitando ubicación precisa al teléfono...");
+      qualityText.textContent = "Calibrando GPS";
+      setLog("Calibrando GPS, mantente quieto 7 segundos.");
     }
 
     function registrarPunto(position) {
@@ -502,36 +644,44 @@
       const base = {
         latitud: coords.latitude,
         longitud: coords.longitude,
-        precision_gps: Number(coords.accuracy || 0),
-        timestamp
+        precision_gps: Number(coords.accuracy || 999),
+        timestamp,
+        velocidad: 0
       };
+      contadores.recibidos += 1;
+      actualizarLecturaGPS(base);
+      actualizarCalidad(base);
 
-      if (ultimoPunto) {
-        const segundos = (new Date(timestamp) - new Date(ultimoPunto.timestamp)) / 1000;
-        base.velocidad = coords.speed && coords.speed > 0
-          ? Number(coords.speed)
-          : velocidadCalculada(ultimoPunto.latitud, ultimoPunto.longitud, base.latitud, base.longitud, segundos);
-      } else {
-        base.velocidad = Number(coords.speed || 0);
-      }
-
-      if (esRuidoQuieto(base)) {
-        puntosIgnorados += 1;
-        actualizarLecturaGPS(base);
-        setLog(`GPS activo. Punto ignorado por ruido de ubicación: ${puntosIgnorados}.`);
+      if (Date.now() - inicioCalibracion < CALIBRACION_MS) {
+        if (base.precision_gps <= PRECISION_MAXIMA) {
+          puntosCalibracion.push(base);
+        } else {
+          contadores.bajaPrecision += 1;
+        }
+        statusEl.textContent = "Calibrando";
+        setLog(`Calibrando GPS, mantente quieto. ${resumenContadores()}`);
         return;
       }
 
-      puntos.push(base);
-      ultimoPunto = base;
-      guardarBuffer();
+      if (!baseCalibracion) {
+        baseCalibracion = puntoMediano(puntosCalibracion);
+        if (!baseCalibracion) {
+          inicioCalibracion = Date.now();
+          puntosCalibracion = [];
+          setLog("Señal GPS débil. Calibrando nuevamente al aire libre.");
+          return;
+        }
+        statusEl.textContent = "GPS estable";
+        qualityText.textContent = "GPS estable";
+        setLog(`GPS estable. Empieza a caminar. ${resumenContadores()}`);
+      }
 
-      statusEl.textContent = "Capturando";
-      actualizarLecturaGPS(base);
-      pintarEstado();
+      if (base.precision_gps > PRECISION_MAXIMA) {
+        descartarPunto("bajaPrecision", "Señal GPS débil");
+        return;
+      }
 
-      qualityDot.className = base.precision_gps <= 10 ? "dot good" : base.precision_gps <= 20 ? "dot" : "dot bad";
-      qualityText.textContent = base.precision_gps <= 10 ? "Señal GPS buena" : base.precision_gps <= 20 ? "Señal aceptable" : "Señal débil";
+      evaluarMovimiento(base, coords);
     }
 
     function manejarError(error) {
@@ -574,7 +724,7 @@
       if (puntos.length === 0) {
         startBtn.disabled = false;
         statusEl.textContent = "Detenido";
-        setLog("No hay puntos GPS para enviar.");
+        setLog(`No hay movimiento real para enviar. ${resumenContadores()}`);
         return;
       }
 
@@ -591,6 +741,9 @@
         localStorage.setItem("gps_futbol_ultimo_envio", hora);
         puntos = [];
         ultimoPunto = null;
+        baseCalibracion = null;
+        candidatosMovimiento = [];
+        contadores = crearContadores();
         guardarBuffer();
         pintarEstado();
         setLog(`Envío correcto. Puntos enviados: ${json.puntos_recibidos}.`);
@@ -632,7 +785,11 @@
       if (watchId !== null) return;
       puntos = [];
       ultimoPunto = null;
-      puntosIgnorados = 0;
+      baseCalibracion = null;
+      puntosCalibracion = [];
+      candidatosMovimiento = [];
+      velocidadAnteriorAceptada = 0;
+      contadores = crearContadores();
       guardarBuffer();
       pintarEstado();
       setLog("Captura local limpiada.");

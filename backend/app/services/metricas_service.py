@@ -21,6 +21,7 @@ PRECISION_MAXIMA = 30
 MOVIMIENTO_MINIMO = 0.5
 DISTANCIA_MINIMA_SESION = 8
 VELOCIDAD_MAXIMA_REALISTA = 10.5  # 37.8 km/h
+ACELERACION_MAXIMA_REALISTA = 5.0
 
 
 def obtener_perfil_calculo():
@@ -36,6 +37,7 @@ def obtener_perfil_calculo():
         "movimiento_minimo_m": MOVIMIENTO_MINIMO,
         "distancia_minima_sesion_m": DISTANCIA_MINIMA_SESION,
         "velocidad_maxima_admitida_kmh": round(VELOCIDAD_MAXIMA_REALISTA * 3.6, 1),
+        "aceleracion_maxima_admitida_ms2": ACELERACION_MAXIMA_REALISTA,
     }
 
 
@@ -121,6 +123,10 @@ def calcular_metricas_desde_puntos(gps):
             else 0
         )
 
+        if abs(aceleracion) > ACELERACION_MAXIMA_REALISTA:
+            segmentos_descartados += 1
+            continue
+
         distancia += d
         duracion_seg += dt
         segmentos_validos += 1
@@ -152,6 +158,8 @@ def calcular_metricas_desde_puntos(gps):
         velocidad_anterior_valida = velocidad
 
     vmax = max(velocidades) if velocidades else 0
+    if vmax < UMBRAL_HSR:
+        hsr = 0
     duracion_min = duracion_seg / 60
     dist_min = distancia / duracion_min if duracion_min > 0 else 0
 

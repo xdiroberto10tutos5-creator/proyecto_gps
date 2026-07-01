@@ -1589,6 +1589,16 @@
       });
     }
 
+    function distanciaRutaMapa(puntos) {
+      let total = 0;
+      for (let i = 1; i < puntos.length; i++) {
+        const anterior = { x: puntos[i - 1][1], y: puntos[i - 1][0] };
+        const actual = { x: puntos[i][1], y: puntos[i][0] };
+        total += distanciaPlano(anterior, actual);
+      }
+      return total;
+    }
+
     function pintarMetricas(m = {}) {
       const mapping = {
         m_distancia_total: m.distancia_total,
@@ -1741,15 +1751,27 @@
       document.getElementById("puntosLabel").textContent = `${puntos.length} puntos`;
       if (!map || !puntos.length) return;
       map.invalidateSize();
-      routeLayer = L.polyline(
-        puntos.map(([y, x]) => [y, x]),
-        {
+      const distanciaVisual = distanciaRutaMapa(puntos);
+      if (puntos.length > 1 && distanciaVisual >= 8) {
+        routeLayer = L.polyline(
+          puntos.map(([y, x]) => [y, x]),
+          {
+            pane: "routePane",
+            color: "#ffffff",
+            weight: 4,
+            opacity: 0.95
+          }
+        ).addTo(map);
+      } else {
+        routeLayer = L.circleMarker([puntos[0][0], puntos[0][1]], {
           pane: "routePane",
+          radius: 6,
           color: "#ffffff",
-          weight: 4,
-          opacity: 0.95
-        }
-      ).addTo(map);
+          weight: 3,
+          fillColor: "#25c968",
+          fillOpacity: 0.9
+        }).addTo(map);
+      }
       map.fitBounds([[-5, -7], [CANCHA.ancho + 5, CANCHA.largo + 7]], {
         padding: [12, 12]
       });

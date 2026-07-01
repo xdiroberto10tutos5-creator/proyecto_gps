@@ -78,6 +78,74 @@ class MetricasTests(unittest.TestCase):
         self.assertEqual(resultado["distancia_metros"], 0)
         self.assertEqual(resultado["velocidad_max_kmh"], 0)
 
+    def test_usuario_quieto_con_drift_gps_no_genera_metricas(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0, precision=12),
+            punto(8.980015, -79.520006, 0.2, 3, precision=14),
+            punto(8.979995, -79.520010, 0.3, 6, precision=13),
+            punto(8.980012, -79.519996, 0.2, 9, precision=15),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertEqual(resultado["distancia_metros"], 0)
+        self.assertEqual(resultado["velocidad_max_kmh"], 0)
+        self.assertEqual(resultado["hsr_metros"], 0)
+        self.assertEqual(resultado["sprints"], 0)
+        self.assertEqual(resultado["deceleraciones"], 0)
+
+    def test_caminata_lenta_real_acumula_distancia_sin_hsr(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0),
+            punto(8.980090, -79.520000, 1.2, 8),
+            punto(8.980180, -79.520000, 1.2, 16),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertGreater(resultado["distancia_metros"], 15)
+        self.assertEqual(resultado["hsr_metros"], 0)
+        self.assertEqual(resultado["sprints"], 0)
+        self.assertEqual(resultado["deceleraciones"], 0)
+
+    def test_salto_gps_imposible_se_descarta(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0),
+            punto(8.985000, -79.520000, 60, 2),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertEqual(resultado["distancia_metros"], 0)
+        self.assertEqual(resultado["segmentos_descartados"], 1)
+
+    def test_caminata_ida_y_vuelta_corta(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0),
+            punto(8.980225, -79.520000, 1.4, 18),
+            punto(8.980000, -79.520000, 1.4, 36),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertGreater(resultado["distancia_metros"], 45)
+        self.assertLess(resultado["distancia_metros"], 55)
+        self.assertEqual(resultado["hsr_metros"], 0)
+        self.assertEqual(resultado["deceleraciones"], 0)
+
+    def test_sprint_hsr_valido(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0),
+            punto(8.980060, -79.520000, 4.7, 1),
+            punto(8.980125, -79.520000, 6.0, 2),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertGreater(resultado["hsr_metros"], 0)
+        self.assertEqual(resultado["sprints"], 1)
+        self.assertGreater(resultado["velocidad_max_kmh"], 20)
+
 
 if __name__ == "__main__":
     unittest.main()
