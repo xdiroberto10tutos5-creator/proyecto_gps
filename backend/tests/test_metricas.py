@@ -154,6 +154,21 @@ class MetricasTests(unittest.TestCase):
         self.assertLess(resultado["distancia_metros"], 65)
         self.assertLess(resultado["puntos_metricas"], resultado["puntos_gps"])
 
+    def test_caminata_con_speed_gps_falso_no_genera_hsr(self):
+        puntos = [
+            punto(8.980000, -79.520000, 0, 0, precision=8),
+            punto(8.980030, -79.520000, 5.4, 4, precision=8),
+            punto(8.980060, -79.520000, 5.2, 8, precision=8),
+            punto(8.980090, -79.520000, 1.1, 12, precision=8),
+        ]
+
+        resultado = calcular_metricas_desde_puntos(puntos)
+
+        self.assertEqual(resultado["hsr_metros"], 0)
+        self.assertEqual(resultado["sprints"], 0)
+        self.assertEqual(resultado["deceleraciones"], 0)
+        self.assertLess(resultado["velocidad_max_kmh"], 10)
+
     def test_sprint_hsr_valido(self):
         puntos = [
             punto(8.980000, -79.520000, 0, 0),

@@ -291,6 +291,8 @@
         <div class="metric"><span>Latitud actual</span><strong id="latitud">--</strong></div>
         <div class="metric"><span>Longitud actual</span><strong id="longitud">--</strong></div>
         <div class="metric"><span>Velocidad actual</span><strong id="velocidad">0.0</strong></div>
+        <div class="metric"><span>Distancia en vivo</span><strong id="distanciaLive">0 m</strong></div>
+        <div class="metric"><span>Estado movimiento</span><strong id="movimientoLive">Quieto</strong></div>
         <div class="metric"><span>Último envío</span><strong id="ultimoEnvio">--</strong></div>
       </div>
       <div id="log" class="log">El teléfono guardará los puntos localmente hasta que detengas la captura.</div>
@@ -331,6 +333,7 @@
     let liveRouteLayer = null;
     let liveCurrentLayer = null;
     let liveMarkerLayer = null;
+    let distanciaAceptada = calcularDistanciaAceptada();
 
     precargarContexto();
     initLiveMap();
@@ -381,9 +384,19 @@
     }
 
     function pintarEstado() {
+      distanciaAceptada = calcularDistanciaAceptada();
       document.getElementById("puntos").textContent = puntos.length;
+      document.getElementById("distanciaLive").textContent = `${distanciaAceptada.toFixed(1)} m`;
       document.getElementById("ultimoEnvio").textContent = localStorage.getItem("gps_futbol_ultimo_envio") || "--";
       pintarRutaEnVivo();
+    }
+
+    function calcularDistanciaAceptada() {
+      let total = 0;
+      for (let i = 1; i < puntos.length; i++) {
+        total += distanciaEntrePuntos(puntos[i - 1], puntos[i]);
+      }
+      return total;
     }
 
     function initLiveMap() {
@@ -582,6 +595,8 @@
       document.getElementById("latitud").textContent = punto.latitud.toFixed(6);
       document.getElementById("longitud").textContent = punto.longitud.toFixed(6);
       document.getElementById("velocidad").textContent = `${(punto.velocidad * 3.6).toFixed(1)} km/h`;
+      document.getElementById("movimientoLive").textContent =
+        punto.velocidad >= VELOCIDAD_CAMINATA_MS ? "En movimiento" : "Quieto";
     }
 
     function actualizarCalidad(punto) {
@@ -722,6 +737,7 @@
       candidatosMovimiento = [];
       velocidadAnteriorAceptada = 0;
       contadores = crearContadores();
+      distanciaAceptada = 0;
       guardarBuffer();
       pintarEstado();
 
@@ -845,6 +861,7 @@
         baseCalibracion = null;
         candidatosMovimiento = [];
         contadores = crearContadores();
+        distanciaAceptada = 0;
         guardarBuffer();
         pintarEstado();
         setLog(`Envío correcto. Puntos enviados: ${json.puntos_recibidos}.`);
@@ -891,6 +908,7 @@
       candidatosMovimiento = [];
       velocidadAnteriorAceptada = 0;
       contadores = crearContadores();
+      distanciaAceptada = 0;
       guardarBuffer();
       pintarEstado();
       setLog("Captura local limpiada.");

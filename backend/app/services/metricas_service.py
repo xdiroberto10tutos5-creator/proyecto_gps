@@ -24,6 +24,7 @@ DISTANCIA_MINIMA_SESION = 8
 VELOCIDAD_MAXIMA_REALISTA = 10.5  # 37.8 km/h
 ACELERACION_MAXIMA_REALISTA = 5.0
 TOLERANCIA_SUAVIZADO_CAMINATA = 5.0
+MARGEN_VELOCIDAD_GPS = 1.8
 
 
 def obtener_perfil_calculo():
@@ -41,6 +42,7 @@ def obtener_perfil_calculo():
         "velocidad_maxima_admitida_kmh": round(VELOCIDAD_MAXIMA_REALISTA * 3.6, 1),
         "aceleracion_maxima_admitida_ms2": ACELERACION_MAXIMA_REALISTA,
         "tolerancia_suavizado_caminata_m": TOLERANCIA_SUAVIZADO_CAMINATA,
+        "margen_velocidad_gps_ms": MARGEN_VELOCIDAD_GPS,
     }
 
 
@@ -129,6 +131,20 @@ def suavizar_puntos_caminata(gps):
     return [gps[i] for i in indices]
 
 
+def velocidad_confiable(velocidad_gps, velocidad_distancia):
+    if velocidad_gps <= 0:
+        return velocidad_distancia
+
+    if velocidad_distancia <= 0:
+        return 0
+
+    diferencia = abs(velocidad_gps - velocidad_distancia)
+    if diferencia > MARGEN_VELOCIDAD_GPS and velocidad_gps > velocidad_distancia:
+        return velocidad_distancia
+
+    return min(velocidad_gps, velocidad_distancia + MARGEN_VELOCIDAD_GPS)
+
+
 def calcular_metricas_desde_puntos(gps):
     puntos_originales = len(gps)
     gps = suavizar_puntos_caminata(gps)
@@ -176,7 +192,7 @@ def calcular_metricas_desde_puntos(gps):
 
         velocidad_gps = float(p2.get("velocidad") or 0)
         velocidad_distancia = d / dt
-        velocidad = velocidad_gps if velocidad_gps > 0 else velocidad_distancia
+        velocidad = velocidad_confiable(velocidad_gps, velocidad_distancia)
 
         if velocidad > VELOCIDAD_MAXIMA_REALISTA:
             segmentos_descartados += 1
